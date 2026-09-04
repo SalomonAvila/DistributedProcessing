@@ -1,0 +1,90 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="Página-1" id="EaOl6JhpvXOPicw5NDl7">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1300" pageHeight="650" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="box_master" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=1;fontSize=15;verticalAlign=top;spacingTop=10;imageAspect=1;fillColor=#dae8fc;strokeColor=#6c8ebf;glass=0;shadow=1;container=0;" value="&lt;span style=&quot;color: rgb(0, 51, 102);&quot;&gt;Master&lt;/span&gt;" vertex="1">
+          <mxGeometry height="450" width="240" x="-1155" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="box_worker" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=15;verticalAlign=top;spacingTop=10;container=0;" value="&lt;span style=&quot;color: rgb(0, 51, 0);&quot;&gt;Worker&lt;/span&gt;" vertex="1">
+          <mxGeometry height="450" width="430" x="-575" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="flow1" edge="1" parent="1" source="eiuICp1p5qqVk962_aQ_-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#6c8ebf;exitX=0;exitY=0;exitDx=180;exitDy=50;exitPerimeter=0;entryX=0.027;entryY=0.558;entryDx=0;entryDy=0;entryPerimeter=0;" target="eiuICp1p5qqVk962_aQ_-19">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="-945" y="250" as="sourcePoint" />
+            <mxPoint x="-505" y="260" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="flow2" edge="1" parent="1" source="eiuICp1p5qqVk962_aQ_-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0;entryDx=180;entryDy=50;strokeWidth=2;strokeColor=#82b366;exitX=-0.009;exitY=0.48;exitDx=0;exitDy=0;entryPerimeter=0;exitPerimeter=0;" target="eiuICp1p5qqVk962_aQ_-17">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+            <mxPoint x="-505" y="515" as="sourcePoint" />
+            <mxPoint x="-945" y="515" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-4" parent="1" style="shape=card;whiteSpace=wrap;html=1;align=left;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=1;" value="&lt;b style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;gRPC: InputChunk&lt;/b&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• chunk_id (string)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• source_file (string)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• target_pattern (string)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• start_offset (uint64)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• end_offset (uint64)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• overlap_size (uint32)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• sequence_data (string)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="150" width="150" x="-815" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-6" parent="1" style="shape=card;whiteSpace=wrap;html=1;align=left;fillColor=#d5e8d4;strokeColor=#82b366;rounded=0;shadow=1;" value="&lt;b style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;gRPC: MapResponse&lt;/b&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• chunk_id (string)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• pattern (string)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;• repeated MatchInfo matches:&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&amp;nbsp;&lt;/span&gt;&amp;nbsp; - source_file (string)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&amp;nbsp;&lt;/span&gt;&amp;nbsp; - global_offset (uint64)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&amp;nbsp;&lt;/span&gt;&amp;nbsp; - line (uint32)&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;&amp;nbsp; &amp;nbsp;- column (uint32)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="150" width="180" x="-830" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_w2_lbl" parent="1" style="text;html=1;fontSize=10;fontColor=#274E13;container=0;" value="SÍ" vertex="1">
+          <mxGeometry height="20" width="30" x="-445" y="515" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-15" parent="1" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;darkOpacity2=0.1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;span style=&quot;font-size: 11px;&quot;&gt;Particionador de FASTA&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;(Divide con solapamiento&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;overlap = L - 1)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="-1125" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-17" parent="1" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;darkOpacity2=0.1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;span style=&quot;font-size: 11px;&quot;&gt;Función Reduce&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;(Agrupa, ordena por offset&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;y cuenta total)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="-1125" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-29" connectable="0" parent="1" style="group" value="" vertex="1">
+          <mxGeometry height="345" width="366" x="-535" y="215" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_w1" edge="1" parent="eiuICp1p5qqVk962_aQ_-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;" target="eiuICp1p5qqVk962_aQ_-25">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="90" y="75" as="sourcePoint" />
+            <mxPoint x="531.5" y="-35" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="flow_w2" edge="1" parent="eiuICp1p5qqVk962_aQ_-29" source="eiuICp1p5qqVk962_aQ_-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#82b366;entryX=0.502;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="eiuICp1p5qqVk962_aQ_-20">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+            <mxPoint x="360.00000000000045" y="364.9999999999998" as="sourcePoint" />
+            <mxPoint x="80" y="265" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="flow_w3_lbl" parent="eiuICp1p5qqVk962_aQ_-29" style="text;html=1;fontSize=10;fontColor=#990000;container=0;" value="NO" vertex="1">
+          <mxGeometry height="20" width="30" x="193" y="145" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-12" parent="eiuICp1p5qqVk962_aQ_-29" style="text;html=1;fontSize=10;fontColor=#990000;container=0;" value="Cruza al sig. chunk" vertex="1">
+          <mxGeometry height="20" width="90" x="256" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-19" parent="eiuICp1p5qqVk962_aQ_-29" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;darkOpacity2=0.1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;span style=&quot;font-size: 11px;&quot;&gt;Búsqueda de Patrón&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;(Evalúa sequence_data)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="80" width="180" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-20" parent="eiuICp1p5qqVk962_aQ_-29" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;darkOpacity2=0.1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;span style=&quot;font-size: 11px;&quot;&gt;Emitir MapOutput&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;Tuplas (Key, Value)&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;Key: pattern&lt;/span&gt;&lt;br style=&quot;font-size: 11px;&quot;&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;Value: MatchInfo&lt;/span&gt;" vertex="1">
+          <mxGeometry height="90" width="180" y="255" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-25" parent="eiuICp1p5qqVk962_aQ_-29" style="whiteSpace=wrap;html=1;shape=mxgraph.basic.layered_rect;dx=10;outlineConnect=0;boundedLbl=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;span style=&quot;font-size: 10px;&quot;&gt;¿Existen matches entre&lt;/span&gt;&lt;br style=&quot;font-size: 10px;&quot;&gt;&lt;span style=&quot;font-size: 10px;&quot;&gt;[start_offset, end_offset]?&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="180" y="138" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-27" parent="eiuICp1p5qqVk962_aQ_-29" style="shape=process;whiteSpace=wrap;html=1;backgroundOutline=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;span style=&quot;font-size: 10px;&quot;&gt;Descartar (Evita duplicados)&lt;/span&gt;" vertex="1">
+          <mxGeometry height="40" width="130" x="236" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="flow_w3" edge="1" parent="eiuICp1p5qqVk962_aQ_-29" source="eiuICp1p5qqVk962_aQ_-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b85450;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="eiuICp1p5qqVk962_aQ_-27">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="445" y="320.0000000000001" as="sourcePoint" />
+            <mxPoint x="306" y="185.5" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-32" parent="1" style="text;html=1;fontSize=10;fontColor=#990000;container=0;" value="&lt;span style=&quot;color: rgb(51, 102, 0);&quot;&gt;SI&lt;/span&gt;" vertex="1">
+          <mxGeometry height="20" width="30" x="-475" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="eiuICp1p5qqVk962_aQ_-33" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=#9673a6;fillColor=#e1d5e7;align=center;verticalAlign=middle;rounded=0;opacity=70;" value="&lt;font style=&quot;font-size: 25px;&quot; face=&quot;Verdana&quot;&gt;Diagrama de Flujo de Datos y Contratos MapReduce&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="1300" x="-1300" y="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
