@@ -22,12 +22,23 @@ Bienvenido a la carpeta de documentación del proyecto **DistributedProcessing**
 
 ### 📄 Documentación Técnica
 
-- **`02-arquitectura.md`**: Decisiones técnicas y trade-offs
+Los documentos técnicos se escriben en [Typst](https://typst.app) (`.typ`) y se compilan automáticamente a PDF por un GitHub Action al hacer push a `main`, publicándose en `RenderedDocuments/` junto con los diagramas `.drawio` exportados a PNG.
+
+- **`01-alcance.typ`**: Alcance del proyecto
+  - Problema que resuelve el sistema y no-objetivos
+  - Restricciones de red y hardware disponible por nodo
+  - Volumen de datos esperado y métricas de éxito
+
+- **`02-arquitectura.typ`**: Decisiones técnicas y trade-offs
   - Justificación de usar **Go**
   - Justificación de usar **gRPC**
   - Justificación de usar **Docker**
   - Matriz de evaluación de alternativas
   - Arquitectura general del sistema
+
+- **`03-esquema-datos.typ`**: Esquema de datos MapReduce
+  - Contratos de `InputChunk`, `MapOutput`, `ReduceInput` y `FinalResult`
+  - Definición formal en Protocol Buffers
 
 ## 🏗️ Stack Tecnológico
 
@@ -56,8 +67,9 @@ Bienvenido a la carpeta de documentación del proyecto **DistributedProcessing**
 ## 📝 Notas para Desarrolladores
 
 - Todos los diagramas están en formato `.drawio` (compatible con [Draw.io](https://draw.io) y [Diagrams.net](https://app.diagrams.net))
+- La documentación técnica está en formato Typst (`.typ`); no se versionan los PDF ni PNG generados a mano, esos se publican automáticamente en `RenderedDocuments/` vía GitHub Actions
 - La documentación se actualiza conforme evoluciona la arquitectura
-- Las decisiones técnicas están rationalizadas en `02-arquitectura.md` para futuras referencias
+- Las decisiones técnicas están racionalizadas en `02-arquitectura.typ` para futuras referencias
 
 ## 🔗 Enlaces Útiles
 
