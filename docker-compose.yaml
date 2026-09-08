@@ -1,0 +1,72 @@
+services:
+
+  master:
+    build:
+      context: .
+      dockerfile: Dockerfile.master
+
+    container_name: master
+
+    ports:
+      - "50051:50051"
+
+    enviorment:
+      MASTER_PORT: "50051"
+      WORKERS: "worker-1:50051,worker-2:50051,worker-3:50051"
+
+    networks:
+      - system-network
+
+
+  worker-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+
+    container_name: worker-1
+
+    environment:
+      WORKER_ID: "1"
+      WORKER_PORT: "50051"
+      MASTER_ADDRESS: "master:50051"
+
+    networks:
+      - system-network
+
+
+  worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+
+    container_name: worker-2
+
+    environment:
+      WORKER_ID: "2"
+      WORKER_PORT: "50051"
+      MASTER_ADDRESS: "master:50051"
+
+    networks:
+      - system-network
+
+
+  worker-3:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+
+    container_name: worker-3
+
+    environment:
+      WORKER_ID: "3"
+      WORKER_PORT: "50051"
+      MASTER_ADDRESS: "master:50051"
+
+    networks:
+      - system-network
+
+
+networks:
+  system-network:
+    driver: bridge
+
