@@ -30,23 +30,23 @@
 
 = Resumen ejecutivo
 
-Este documento describe las decisiones arquitectónicas principales del proyecto DistributedProcessing y los trade-offs evaluados en cada elección. El proyecto implementa un sistema de procesamiento distribuido utilizando Go, gRPC y Docker.
+Este documento describe las decisiones arquitectónicas principales del proyecto DistributedProcessing y los trade-offs evaluados en cada elección. El proyecto implementa un motor de procesamiento distribuido MapReduce, desarrollado desde cero en Go y comunicado mediante gRPC, desplegado sobre un clúster Kubernetes que orquesta el ciclo de vida de los contenedores. La separación de responsabilidades es explícita en todo el documento: Kubernetes resuelve la orquestación de procesos, mientras que el motor propio resuelve la lógica de particionamiento, comunicación, shuffle y tolerancia a fallos a nivel de aplicación.
 
 = Por qué Go
 
 == Decisión
 
-Go (Golang) fue seleccionado como el lenguaje principal para implementar el sistema de procesamiento distribuido.
+Go fue seleccionado como el lenguaje principal para implementar el sistema de procesamiento distribuido.
 
 == Justificación
 
-Go proporciona *goroutines*, threads ligeros manejados por el runtime, capaces de ejecutar miles o millones de instancias simultáneamente sin el overhead de los threads del sistema operativo, lo que lo hace ideal para sistemas distribuidos que manejan múltiples conexiones concurrentes.
+Go proporciona goroutines, threads ligeros manejados por el runtime, capaces de ejecutar miles o millones de instancias simultáneamente sin el overhead de los threads del sistema operativo, lo que lo hace ideal para sistemas distribuidos que manejan múltiples conexiones concurrentes.
 
-El lenguaje compila a un único binario estático sin dependencias externas, lo que simplifica la distribución a múltiples nodos y encaja de forma natural con la contenedorización en Docker, reduciendo el tamaño de las imágenes generadas.
+El lenguaje compila a un único binario estático sin dependencias externas, lo que simplifica la distribución a múltiples nodos y encaja de forma natural con la contenedorización, reduciendo el tamaño de las imágenes generadas y el tiempo de arranque de los pods en Kubernetes.
 
 En cuanto a rendimiento, Go es casi tan rápido como C o C++ pero considerablemente más fácil de mantener, con bajo consumo de memoria y un recolector de basura optimizado para baja latencia, lo cual resulta apropiado para sistemas con recursos limitados.
 
-Finalmente, Go cuenta con un ecosistema robusto para sistemas distribuidos: soporte nativo y de primera clase para gRPC, librerías de red maduras como `net`, `net/http` y `context`, y herramientas de testing integradas para código concurrente.
+Finalmente, Go cuenta con un ecosistema robusto para sistemas distribuidos: soporte nativo y de primera clase para gRPC, librerías de red maduras como net, net/http y context, y herramientas de testing integradas para código concurrente.
 
 == Trade-offs
 
@@ -57,13 +57,13 @@ Finalmente, Go cuenta con un ecosistema robusto para sistemas distribuidos: sopo
   align: left,
   table.header([*Aspecto*], [*Ventaja*], [*Desventaja*]),
   [Curva de aprendizaje], [Sintaxis simple, fácil de aprender], [Si el equipo viene de OOP, requiere cambio de paradigma],
-  [Ecosistema], [Grande para sistemas distribuidos], [Menos librerías que Python o Java para ML/IA],
+  [Ecosistema], [Grande para sistemas distribuidos], [Menos librerías que Python para análisis de datos],
   [Tipado], [Tipado estático, mejor seguridad], [Menos flexible que lenguajes dinámicos],
 )
 
 == Alternativas evaluadas
 
-Se evaluó Python, descartado por ser más lento y por el overhead del GIL para concurrencia real. Se evaluó Java, descartado por el peso de la JVM y su mayor consumo de memoria. Se evaluó Rust, que ofrece mayor seguridad pero con una curva de aprendizaje más pronunciada que Go.
+Se evaluó Python, descartado por ser más lento y por el overhead del GIL para concurrencia real, aunque ofrece librerías superiores para análisis de datos. Se evaluó Java, descartado por el peso de la JVM y su mayor consumo de memoria, además de imágenes de contenedor más pesadas. Se evaluó Rust, que ofrece mayor seguridad pero con una curva de aprendizaje más pronunciada que Go.
 
 = Por qué gRPC
 
@@ -75,9 +75,9 @@ gRPC fue seleccionado como el protocolo RPC para la comunicación entre servicio
 
 gRPC utiliza Protocol Buffers para una serialización binaria compacta y rápida, y se apoya en HTTP/2 con multiplexing nativo, permitiendo múltiples streams en una sola conexión y reduciendo significativamente el ancho de banda frente a REST sobre JSON.
 
-En cuanto a rendimiento, gRPC ofrece latencia baja y throughput alto para comunicación de alta frecuencia entre servicios, siendo típicamente uno o dos órdenes de magnitud más rápido que REST para carga de datos.
+En cuanto a rendimiento, gRPC ofrece latencia baja y throughput alto para comunicación de alta frecuencia entre servicios, siendo típicamente uno o dos órdenes de magnitud más rápido que REST para carga de datos. Esto es especialmente relevante en el shuffle de la Etapa 2 del pipeline, donde el volumen de tráfico entre workers es mayor que en la agregación simple de la Etapa 1.
 
-Los archivos `.proto` definen contratos de interfaz explícitos con tipado fuerte, lo que permite validación automática de mensajes y elimina la serialización manual mediante generación de código. Además, gRPC soporta streaming bidireccional de forma nativa, habilitando patrones de mensajería más complejos entre cliente y servidor.
+Los archivos proto definen contratos de interfaz explícitos con tipado fuerte, lo que permite validación automática de mensajes y elimina la serialización manual mediante generación de código. Además, gRPC soporta streaming bidireccional de forma nativa, habilitando patrones de mensajería más complejos entre cliente y servidor.
 
 == Trade-offs
 
@@ -89,55 +89,68 @@ Los archivos `.proto` definen contratos de interfaz explícitos con tipado fuert
   table.header([*Aspecto*], [*Ventaja*], [*Desventaja*]),
   [Curva de aprendizaje], [Potente y eficiente], [Requiere aprender Protocol Buffers],
   [Debugging], [Tipado fuerte, errores claros], [Mensajes binarios, no legibles en texto plano],
-  [Browser], [No requiere HTTP/1.1], [No soporta llamadas directas desde el navegador sin gRPC-Web],
+  [Browser], [No requiere HTTP/1.1], [No soporta llamadas directas desde navegador sin gRPC-Web],
   [Ecosistema REST], [Herramientas especializadas], [Menos omnipresente que REST en todos los lenguajes],
 )
 
 == Alternativas evaluadas
 
-Se evaluó REST sobre JSON, más simple pero menos eficiente para comunicación de alta frecuencia. Se evaluó GraphQL, más flexible pero con overhead de parsing. Se evaluaron colas de mensajes como RabbitMQ o Kafka, adecuadas para asincronía pero más complejas para RPC sincrónico. Se evaluaron WebSockets, viables pero menos optimizados que HTTP/2 combinado con gRPC.
+Se evaluó REST sobre JSON, más simple pero menos eficiente para comunicación de alta frecuencia. Se evaluó GraphQL, más flexible pero con overhead de parsing. Se evaluaron colas de mensajes como RabbitMQ o Kafka, adecuadas para asincronía pero más complejas para RPC sincrónico como el que requiere la asignación de tareas y los heartbeats del motor propio.
 
-== Arquitectura de servicios con gRPC
-
-```
-┌─────────────────────────────────────┐
-│   Client                            │
-└──────────────────┬──────────────────┘
-                   │ gRPC (HTTP/2)
-                   │ Protocol Buffers
-                   ▼
-┌─────────────────────────────────────┐
-│   Service 1      │   Service 2      │
-│  (Worker Node)   │  (Coordinator)   │
-└─────────────────────────────────────┘
-```
-
-= Por qué Docker
+= Por qué Kubernetes
 
 == Decisión
 
-Docker fue seleccionado para la contenedorización y orquestación de componentes del sistema.
+Kubernetes fue seleccionado como la plataforma de orquestación de contenedores para el clúster, reemplazando la gestión manual de procesos en las cuatro máquinas físicas.
 
 == Justificación
 
-Docker garantiza portabilidad: el mismo contenedor corre de forma idéntica en desarrollo, testing y producción, eliminando el problema de "funciona en mi máquina" al encapsular completamente las dependencias, de forma multiplataforma entre Linux, Windows y Mac.
+Kubernetes resuelve el problema de virtualización y orquestación de procesos: ciclo de vida de contenedores, red entre nodos, ubicación de los pods y recuperación automática de procesos caídos. Esta responsabilidad se mantiene deliberadamente separada de la lógica de distribución de datos y cómputo del motor propio, que cubre particionamiento, comunicación, shuffle, join distribuido y tolerancia a fallos a nivel de tarea.
 
-Cada contenedor corre en su propio namespace de procesos, red y sistema de archivos, ofreciendo aislamiento de recursos, un entorno reproducible y totalmente versionable, y la posibilidad de correr múltiples versiones del mismo servicio de forma independiente.
+Los workers se despliegan mediante un StatefulSet con un Service headless asociado, lo que otorga a cada worker un nombre DNS estable dentro del clúster, necesario para que el master pueda dirigirse a cada worker de forma predecible sin depender de descubrimiento dinámico. El master se despliega mediante un Deployment de una réplica con su propio Service para exponer su API gRPC.
 
-Docker facilita además la orquestación posterior: es el estándar de facto junto con Kubernetes, permite agregar o remover instancias de forma trivial, y se integra naturalmente con sistemas de despliegue distribuido.
+Para garantizar que las mediciones de speedup no queden contaminadas por dos workers ejecutándose en el mismo nodo físico, se configura podAntiAffinity de forma que cada pod worker sea programado en un nodo distinto. Kubernetes gestiona además la recuperación de procesos mediante livenessProbe y readinessProbe: si un contenedor worker deja de responder, Kubernetes lo reinicia automáticamente, de forma independiente y en un plano distinto al mecanismo de reasignación de tareas que implementa el master.
 
-La combinación de Go y Docker resulta particularmente favorable, ya que Go compila binarios pequeños, típicamente entre 5 y 50 MB, lo que permite imágenes muy ligeras partiendo de `scratch` y sin necesidad de un runtime adicional como la JVM o un intérprete de Python.
+Se evita deliberadamente delegar en primitivas nativas de Kubernetes, como un Job con completions indexados, la responsabilidad de repartir el trabajo entre los workers, ya que esa lógica de particionamiento y scheduling de tareas es precisamente el objeto de aprendizaje e implementación del proyecto.
+
+== Trade-offs
+
+#table(
+  columns: (1fr, 1fr, 1fr),
+  stroke: 0.5pt + gray,
+  inset: 8pt,
+  align: left,
+  table.header([*Aspecto*], [*Ventaja*], [*Desventaja*]),
+  [Recuperación de procesos], [Automática mediante probes, sin código adicional], [Opera en un plano distinto al de recuperación de tareas del motor propio, requiere medirse por separado],
+  [Descubrimiento de servicios], [DNS estable vía Service headless], [Requiere StatefulSet en lugar de Deployment simple para los workers],
+  [Curva de aprendizaje], [Estándar de la industria, documentación amplia], [Conceptos adicionales sobre Docker puro: pods, servicios, afinidad],
+  [Aislamiento entre nodos físicos], [podAntiAffinity garantiza un worker por nodo], [Requiere configuración explícita, no es el comportamiento por defecto],
+)
+
+== Alternativas evaluadas
+
+Se evaluó gestionar los contenedores Docker de forma manual en cada una de las cuatro máquinas, descartado por no ofrecer recuperación automática de procesos ni descubrimiento de servicios, y por requerir scripts propios de despliegue difíciles de mantener a medida que el número de experimentos crece. Se evaluó Docker Swarm, más simple que Kubernetes pero con un ecosistema y una comunidad considerablemente menores, y con primitivas menos maduras para afinidad de pods. Se evaluó Nomad, viable pero con menor adopción y documentación que Kubernetes para este tipo de despliegue académico.
+
+= Por qué Docker como base de contenedorización
+
+== Decisión
+
+Docker fue seleccionado como el runtime de contenedores sobre el cual corre Kubernetes, y como la herramienta de construcción de las imágenes de master y workers.
+
+== Justificación
+
+Docker garantiza portabilidad: la misma imagen corre de forma idéntica en desarrollo y en el clúster, encapsulando completamente las dependencias del binario Go. Cada contenedor corre en su propio namespace de procesos, red y sistema de archivos, ofreciendo aislamiento de recursos y un entorno reproducible y versionable, sobre el cual Kubernetes programa y gestiona los pods.
+
+La combinación de Go y Docker resulta particularmente favorable, ya que Go compila binarios pequeños, típicamente entre 5 y 50 MB, lo que permite imágenes muy ligeras partiendo de scratch y sin necesidad de un runtime adicional como la JVM o un intérprete de Python, reduciendo el tiempo de despliegue de los pods en el clúster.
 
 == Ejemplo: Dockerfile óptima para Go
 
 ```dockerfile
-# Etapa 1: Build
 FROM golang:1.26.1 AS builder
 WORKDIR /app
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
-# Etapa 2: Runtime (Multi-stage)
 FROM scratch
 COPY --from=builder /app/main /main
 EXPOSE 50051
@@ -154,33 +167,17 @@ El resultado es una imagen de aproximadamente 10 MB, sin dependencias adicionale
   inset: 8pt,
   align: left,
   table.header([*Aspecto*], [*Ventaja*], [*Desventaja*]),
-  [Overhead], [Mínimo en Linux nativo], [Overhead en Mac/Windows con Docker Desktop],
-  [Curva de aprendizaje], [Conceptos simples], [Requiere entender contenedores y networking],
-  [Debugging], [Aislamiento seguro], [Más complejo depurar dentro de un contenedor],
-  [Persistencia], [Volúmenes bien soportados], [Requiere gestión explícita de estado],
+  [Overhead], [Mínimo en Linux nativo], [Overhead en Mac/Windows con Docker Desktop durante desarrollo local],
+  [Tamaño de imagen], [Binario Go compila a imagen mínima], [Requiere multi-stage build para evitar incluir el toolchain de Go],
+  [Debugging], [Aislamiento seguro], [Más complejo depurar dentro de un contenedor sin herramientas de shell],
+  [Persistencia], [Volúmenes bien soportados junto con PersistentVolume de Kubernetes], [Requiere gestión explícita de estado entre reinicios de pod],
 )
 
 == Alternativas evaluadas
 
-Se evaluaron máquinas virtuales tradicionales, con más aislamiento pero un overhead masivo en gigabytes frente a megabytes. Se evaluó despliegue en bare metal, con máximo rendimiento pero complejidad de despliegue extrema. Se evaluaron plataformas serverless, descartadas por la falta de control sobre el runtime y la latencia fría.
+Se evaluaron máquinas virtuales tradicionales, con más aislamiento pero un overhead masivo en gigabytes frente a megabytes, y arranque considerablemente más lento para los experimentos repetidos que requiere el proyecto. Se evaluó despliegue en bare metal, con máximo rendimiento pero incompatible con la orquestación mediante Kubernetes.
 
-== Arquitectura de despliegue
-
-```
-┌──────────────────────────────────────────────┐
-│        Docker Host / Kubernetes Node         │
-│                                              │
-│  ┌────────────────┐  ┌────────────────┐    │
-│  │  Container 1   │  │  Container 2   │    │
-│  │  (Worker)      │  │  (Coordinator) │    │
-│  └────────────────┘  └────────────────┘    │
-│                                              │
-│  Network: bridge/overlay                    │
-│  Storage: volumes, tmpfs                    │
-└──────────────────────────────────────────────┘
-```
-
-= Matriz de decisiones: evaluación de alternativas
+= Matriz de decisiones: evaluación de alternativas de lenguaje
 
 #table(
   columns: (1fr, 1fr, 1fr, 1fr, 1fr),
@@ -197,48 +194,65 @@ Se evaluaron máquinas virtuales tradicionales, con más aislamiento pero un ove
 
 = Arquitectura general del sistema
 
-El siguiente diagrama, en notación Mermaid, resume la arquitectura general: los clientes acceden a un balanceador de carga sobre la capa gRPC, que distribuye las peticiones entre los Workers, coordinados por el Master, y cada componente corre en su propio contenedor Docker.
+== Despliegue sobre Kubernetes
 
-```mermaid
-graph TB
-    subgraph clients["Clients"]
-        C1[Client 1]
-        C2[Client N]
-    end
+El clúster consta de un Deployment de una réplica para el master, expuesto mediante un Service, y un StatefulSet de tres réplicas para los workers, expuesto mediante un Service headless que otorga nombre DNS estable a cada pod. La configuración de podAntiAffinity asegura que cada worker se programe en un nodo físico distinto de los otros dos.
 
-    subgraph grpc["gRPC Layer (HTTP/2 + Protocol Buffers)"]
-        LB[Load Balancer]
-    end
+```
+┌──────────────────────────────────────────────────────┐
+│                    Clúster Kubernetes                │
+│                                                        │
+│   ┌────────────────────┐                              │
+│   │  Deployment: master│                               │
+│   │  ┌──────────────┐  │      Service: master-svc     │
+│   │  │ Pod master   │  │◄──────────────────────────┐  │
+│   │  │ (Go + gRPC)  │  │                            │  │
+│   │  └──────────────┘  │                            │  │
+│   └─────────┬───────────┘                           │  │
+│             │ gRPC                                   │  │
+│             ▼                                        │  │
+│   ┌────────────────────────────────────────────┐    │  │
+│   │  StatefulSet: workers (Service headless)    │    │  │
+│   │  ┌──────────┐ ┌──────────┐ ┌──────────┐    │    │  │
+│   │  │ worker-0 │ │ worker-1 │ │ worker-2 │    │    │  │
+│   │  │ Go + gRPC│ │ Go + gRPC│ │ Go + gRPC│    │    │  │
+│   │  └──────────┘ └──────────┘ └──────────┘    │    │  │
+│   │  podAntiAffinity: un worker por nodo físico │    │  │
+│   └────────────────────────────────────────────┘    │  │
+└──────────────────────────────────────────────────────┘  │
+                                                            │
+     Client (CLI / API) ────────────────────────────────────┘
+```
 
-    subgraph services["Compute Nodes"]
-        S1["Worker Service 1<br/>(Go + gRPC)"]
-        S2["Worker Service N<br/>(Go + gRPC)"]
-        COORD["Coordinator<br/>(Go + gRPC)"]
-    end
+== Flujo del pipeline de dos etapas
 
-    subgraph docker["Docker / Kubernetes"]
-        D1["Container 1"]
-        D2["Container N"]
-        DCOORD["Container Coordinator"]
-    end
+El master coordina dos etapas de procesamiento sobre los workers, según lo definido en el esquema de datos del proyecto. En la Etapa 1, los Jobs A, B1 y B2 se ejecutan de forma independiente, cada uno particionando su conjunto de datos correspondiente entre los tres workers. En la Etapa 2, el master coordina el reduce-side join sobre los resultados agregados de la Etapa 1.
 
-    C1 --> LB
-    C2 --> LB
-    LB --> S1
-    LB --> S2
-    S1 --> COORD
-    S2 --> COORD
-    S1 -.-> D1
-    S2 -.-> D2
-    COORD -.-> DCOORD
+```
+Etapa 1 (paralela, sin dependencia entre jobs)
+ ┌────────────┐   ┌────────────┐   ┌────────────┐
+ │  Job A      │   │  Job B1    │   │  Job B2    │
+ │  Procesos   │   │  Precio    │   │  Concentr. │
+ └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+        │                 │                 │
+        ▼                 ▼                 ▼
+ Tabla intermedia A  Tabla intermedia B1  Tabla intermedia B2
+
+Etapa 2 (join distribuido)
+        └────────────────┬────────────────┘
+                          ▼
+              Reduce-side join por id_del_proceso
+                          │
+                          ▼
+              Reporte de riesgo consolidado
 ```
 
 = Conclusiones y próximos pasos
 
-Las decisiones de usar Go, gRPC y Docker quedan ratificadas: Go resulta ideal para sistemas distribuidos con alta concurrencia, gRPC ofrece máxima eficiencia en la comunicación entre servicios, y Docker garantiza portabilidad y escalabilidad.
+Las decisiones de usar Go, gRPC, Docker y Kubernetes quedan ratificadas: Go resulta ideal para sistemas distribuidos con alta concurrencia, gRPC ofrece máxima eficiencia en la comunicación entre servicios, Docker garantiza portabilidad de las imágenes, y Kubernetes resuelve la orquestación de procesos y recuperación automática de pods de forma separada y complementaria a la tolerancia a fallos a nivel de tarea que implementa el motor propio.
 
-Como consideraciones futuras se contempla implementar Kubernetes para orquestación automática, incorporar observabilidad mediante distributed tracing con Jaeger y métricas con Prometheus, implementar patrones de circuit breaker y retry logic en gRPC, y configurar health checks en los servicios.
+Como consideraciones futuras se contempla incorporar observabilidad mediante distributed tracing con Jaeger y métricas con Prometheus, implementar patrones de circuit breaker y retry logic en gRPC, y automatizar el despliegue de los manifiestos de Kubernetes mediante un pipeline de integración continua.
 
 = Referencias
 
-Documentación oficial de Go en `golang.org/doc`, guía de gRPC en Go en `grpc.io/docs/languages/go`, especificación de Protocol Buffers en `developers.google.com/protocol-buffers`, buenas prácticas de Docker en `docs.docker.com/develop/dev-best-practices` y documentación de Kubernetes en `kubernetes.io/docs`.
+Documentación oficial de Go en golang.org/doc, guía de gRPC en Go en grpc.io/docs/languages/go, especificación de Protocol Buffers en developers.google.com/protocol-buffers, buenas prácticas de Docker en docs.docker.com/develop/dev-best-practices y documentación de Kubernetes en kubernetes.io/docs, particularmente las secciones de StatefulSet, Service headless y podAntiAffinity.
