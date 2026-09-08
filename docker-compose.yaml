@@ -10,7 +10,7 @@ services:
     ports:
       - "50051:50051"
 
-    enviorment:
+    environment:
       MASTER_PORT: "50051"
       WORKERS: "worker-1:50051,worker-2:50051,worker-3:50051"
 
