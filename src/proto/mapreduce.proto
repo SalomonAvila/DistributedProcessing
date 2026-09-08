@@ -1,0 +1,18 @@
+// proto/mapreduce.proto
+syntax = "proto3";
+
+package mapreduce;
+
+option go_package = "github.com/SalomonAvila/DistributedProcessing/proto";
+
+service WorkerService {
+  rpc Ping (PingRequest) returns (PingResponse);
+}
+
+message PingRequest {
+  string from = 1;
+}
+
+message PingResponse {
+  string message = 1;
+}
