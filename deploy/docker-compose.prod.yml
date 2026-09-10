@@ -1,0 +1,43 @@
+services:
+  master:
+    build:
+      context: ..
+      dockerfile: Dockerfile.master
+    container_name: master
+    network_mode: host
+    environment:
+      MASTER_PORT: "${MASTER_PORT}"
+      WORKERS: "${WORKER_1_IP}:${WORKER_PORT},${WORKER_2_IP}:${WORKER_PORT},${WORKER_3_IP}:${WORKER_PORT}"
+
+  worker-1:
+    build:
+      context: ..
+      dockerfile: Dockerfile.worker
+    container_name: worker-1
+    network_mode: host
+    environment:
+      WORKER_ID: "1"
+      WORKER_PORT: "${WORKER_PORT}"
+      MASTER_ADDRESS: "${MASTER_IP}:${MASTER_PORT}"
+
+  worker-2:
+    build:
+      context: ..
+      dockerfile: Dockerfile.worker
+    container_name: worker-2
+    network_mode: host
+    environment:
+      WORKER_ID: "2"
+      WORKER_PORT: "${WORKER_PORT}"
+      MASTER_ADDRESS: "${MASTER_IP}:${MASTER_PORT}"
+
+  worker-3:
+    build:
+      context: ..
+      dockerfile: Dockerfile.worker
+    container_name: worker-3
+    network_mode: host
+    environment:
+      WORKER_ID: "3"
+      WORKER_PORT: "${WORKER_PORT}"
+      MASTER_ADDRESS: "${MASTER_IP}:${MASTER_PORT}"
