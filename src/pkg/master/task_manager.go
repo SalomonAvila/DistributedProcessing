@@ -20,15 +20,15 @@ const (
 
 // Task encapsula la información de una tarea asignable a un worker.
 type Task struct {
-	ID               string
-	Assignment       *pb.TaskAssignment
-	State            TaskState
-	AssignedWorkerID string
-	AssignedAt       time.Time
-	CompletedAt      time.Time
+	ID                string
+	Assignment        *pb.TaskAssignment
+	State             TaskState
+	AssignedWorkerID  string
+	AssignedAt        time.Time
+	CompletedAt       time.Time
 	FailoverStartedAt time.Time
-	Retries          int
-	Result           *pb.TaskResult
+	Retries           int
+	Result            *pb.TaskResult
 }
 
 // TaskStats expone el conteo actual de tareas según su estado.
@@ -193,6 +193,48 @@ func (tm *TaskManager) GetTasksByWorker(workerID string) []*Task {
 		}
 	}
 	return tasks
+}
+
+func (tm *TaskManager) GetTasksByPhase(
+	phase pb.TaskPhase,
+) []*Task {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+
+	result := make([]*Task, 0)
+
+	for _, task := range tm.allTasks {
+		if task.Assignment != nil &&
+			task.Assignment.Phase == phase {
+			result = append(result, task)
+		}
+	}
+
+	return result
+}
+
+func (tm *TaskManager) AllTasksCompletedForPhase(
+	phase pb.TaskPhase,
+) bool {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+
+	found := false
+
+	for _, task := range tm.allTasks {
+		if task.Assignment == nil ||
+			task.Assignment.Phase != phase {
+			continue
+		}
+
+		found = true
+
+		if task.State != TaskCompleted {
+			return false
+		}
+	}
+
+	return found
 }
 
 // Stats retorna el conteo de tareas por estado.

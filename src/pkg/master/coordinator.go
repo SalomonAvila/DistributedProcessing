@@ -15,11 +15,12 @@ import (
 type Coordinator struct {
 	pb.UnimplementedMasterServiceServer
 
-	TM         *TaskManager
-	WP         *WorkerPool
-	mu         sync.Mutex
-	doneChan   chan struct{}
-	allDone    bool
+	TM            *TaskManager
+	WP            *WorkerPool
+	mu            sync.Mutex
+	doneChan      chan struct{}
+	allDone       bool
+	reduceStarted bool
 }
 
 // NewCoordinator inicializa un nuevo Coordinator.
@@ -52,6 +53,59 @@ func (c *Coordinator) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (
 	return &pb.HeartbeatResponse{Acknowledged: true}, nil
 }
 
+func (c *Coordinator) startCompetitionReduce() {
+	workers := c.WP.GetAllWorkers()
+
+	log.Printf(
+		"[Master] Iniciando fase REDUCE con %d workers",
+		len(workers),
+	)
+
+	for _, worker := range workers {
+		taskID := fmt.Sprintf(
+			"reduce_%s",
+			worker.ID,
+		)
+
+		c.TM.Enqueue(&Task{
+			ID: taskID,
+			Assignment: &pb.TaskAssignment{
+				TaskId:  taskID,
+				ChunkId: fmt.Sprintf("reduce_%s", worker.ID),
+				JobType: pb.JobType_JOB_A_COMPETITION,
+				Phase:   pb.TaskPhase_PHASE_REDUCE,
+			},
+		})
+	}
+
+	go c.DispatchPendingTasks(context.Background())
+}
+
+func (c *Coordinator) maybeStartReduce() {
+	c.mu.Lock()
+
+	if c.reduceStarted {
+		c.mu.Unlock()
+		return
+	}
+
+	if !c.TM.AllTasksCompletedForPhase(
+		pb.TaskPhase_PHASE_MAP,
+	) {
+		c.mu.Unlock()
+		return
+	}
+
+	c.reduceStarted = true
+	c.mu.Unlock()
+
+	log.Println(
+		"[Master] Todos los MAP completados. Iniciando REDUCE...",
+	)
+
+	c.startCompetitionReduce()
+}
+
 // ReportTaskResult es invocado por un worker al finalizar una tarea.
 func (c *Coordinator) ReportTaskResult(ctx context.Context, req *pb.TaskResult) (*pb.TaskResultAck, error) {
 	log.Printf("[Master] Reporte de tarea %s de worker %s con estado %s (duración %d ms)",
@@ -79,6 +133,15 @@ func (c *Coordinator) ReportTaskResult(ctx context.Context, req *pb.TaskResult) 
 		}
 	}
 	c.WP.SetStatus(workerID, WorkerStatusIdle, "")
+
+	task, exists := c.TM.GetTask(req.TaskId)
+
+	if exists &&
+		task.Assignment != nil &&
+		task.Assignment.Phase == pb.TaskPhase_PHASE_MAP {
+
+		go c.maybeStartReduce()
+	}
 
 	// Despachar inmediatamente nuevas tareas pendientes
 	go c.DispatchPendingTasks(context.Background())
@@ -161,18 +224,32 @@ func (c *Coordinator) assignTaskAsync(ctx context.Context, worker *WorkerNode, t
 		task.FailoverStartedAt = time.Time{}
 	}
 }
-
 func (c *Coordinator) checkDone() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if !c.allDone && c.TM.IsAllDone() {
-		c.allDone = true
-		stats := c.TM.Stats()
-		log.Printf("[Master] Todas las tareas completadas! Estadisticas: Total=%d, Completadas=%d, Fallidas=%d",
-			stats.Total, stats.Completed, stats.Failed)
-		close(c.doneChan)
+	if c.allDone {
+		return
 	}
+
+	if !c.TM.AllTasksCompletedForPhase(
+		pb.TaskPhase_PHASE_REDUCE,
+	) {
+		return
+	}
+
+	c.allDone = true
+
+	stats := c.TM.Stats()
+
+	log.Printf(
+		"[Master] Job A completado: total=%d completed=%d failed=%d",
+		stats.Total,
+		stats.Completed,
+		stats.Failed,
+	)
+
+	close(c.doneChan)
 }
 
 // WaitCompletion espera hasta que todas las tareas encoladas finalicen o el contexto expire.
