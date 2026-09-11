@@ -3,3 +3,6 @@ docs/*.png
 .vscode
 *.pb.go
 *bin
+
+# Datasets crudos descargados (ver data/README.md), no se versionan
+data/raw/**/*.csv
