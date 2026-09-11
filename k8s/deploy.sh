@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Aplica los manifiestos de k8s/ en orden y espera a que todo quede Ready.
+# Borra el namespace (si existe) y lo recrea desde cero, después aplica los
+# manifiestos de k8s/ en orden y espera a que todo quede Ready. Deploy
+# siempre limpio: no arrastra pods/recursos de una corrida anterior.
 # Correr desde donde sea que tengas acceso al clúster (kubectl configurado)
 # — no requiere ssh a ningún nodo.
 set -euo pipefail
 
 NAMESPACE=distributed-processing
 K8S_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "==> Borrando namespace $NAMESPACE (si existe)"
+kubectl delete namespace "$NAMESPACE" --ignore-not-found --timeout=120s
 
 echo "==> Aplicando namespace"
 kubectl apply -f "$K8S_DIR/namespace.yaml"
