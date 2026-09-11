@@ -1,3 +1,13 @@
+# ──────────────────────────────────────────────────────────────────────
+# SOLO PARA DESARROLLO LOCAL
+#
+# Este archivo NO representa la topología real de producción, que es
+# Kubernetes (ver docs/02-arquitectura.typ). No tiene healthchecks ni
+# probes, por lo que NO sirve para validar tolerancia a fallos ni
+# recuperación de procesos. Para esas pruebas, usar los manifiestos
+# de Kubernetes (Épica 4).
+# ──────────────────────────────────────────────────────────────────────
+
 services:
 
   master:
@@ -13,6 +23,11 @@ services:
     environment:
       MASTER_PORT: "50051"
       WORKERS: "worker-1:50051,worker-2:50051,worker-3:50051"
+
+    depends_on:
+      - worker-1
+      - worker-2
+      - worker-3
 
     networks:
       - system-network
@@ -69,4 +84,3 @@ services:
 networks:
   system-network:
     driver: bridge
-

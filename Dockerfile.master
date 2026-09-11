@@ -1,6 +1,8 @@
 # BUILD STAGE
 
-FROM golang:1.23 AS builder
+FROM golang:1.24 AS builder
+
+ENV GOTOOLCHAIN=auto
 
 WORKDIR /app
 
@@ -11,17 +13,14 @@ RUN go mod download
 COPY src/ ./
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -o master master.go
+    go build -o master ./cmd/master
 
 # Runtime
 
-FROM alpine:3.22
+FROM scratch
 
-WORKDIR /app
-
-COPY --from=builder /app/master .
+COPY --from=builder /app/master /master
 
 EXPOSE 50051
 
-CMD ["./master"]
-
+CMD ["/master"]

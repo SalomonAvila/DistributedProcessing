@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"strings"
 	"time"
 
 	pb "github.com/SalomonAvila/DistributedProcessing/proto"
@@ -10,11 +13,11 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func main() {
-	conn, err := grpc.NewClient("localhost:50051",
+func pingWorker(address string) error {
+	conn, err := grpc.NewClient(address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("no se pudo conectar: %v", err)
+		return err
 	}
 	defer conn.Close()
 
@@ -24,7 +27,43 @@ func main() {
 
 	resp, err := client.Ping(ctx, &pb.PingRequest{From: "master"})
 	if err != nil {
-		log.Fatalf("error en Ping: %v", err)
+		return err
 	}
-	log.Printf("Respuesta del worker: %s", resp.Message)
+	log.Printf("[%s] Respuesta: %s", address, resp.Message)
+	return nil
+}
+
+func main() {
+	workersEnv := os.Getenv("WORKERS")
+	if workersEnv == "" {
+		workersEnv = "localhost:50051"
+	}
+	workers := strings.Split(workersEnv, ",")
+
+	log.Printf("Master iniciado. Workers configurados: %v", workers)
+
+	// Esperar a que los workers estén listos (reintentar con backoff simple)
+	for _, addr := range workers {
+		addr = strings.TrimSpace(addr)
+		var lastErr error
+		for attempt := 1; attempt <= 10; attempt++ {
+			lastErr = pingWorker(addr)
+			if lastErr == nil {
+				break
+			}
+			log.Printf("[%s] Intento %d/10 falló: %v. Reintentando en 2s...", addr, attempt, lastErr)
+			time.Sleep(2 * time.Second)
+		}
+		if lastErr != nil {
+			log.Fatalf("[%s] No se pudo conectar después de 10 intentos: %v", addr, lastErr)
+		}
+	}
+
+	log.Println("Ping exitoso a todos los workers. Master en espera.")
+
+	// Mantener el proceso vivo hasta recibir señal de terminación
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	<-ctx.Done()
+	log.Println("Master terminado.")
 }
