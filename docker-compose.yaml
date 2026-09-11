@@ -13,7 +13,8 @@ services:
   master:
     build:
       context: .
-      dockerfile: Dockerfile.master
+      dockerfile: Dockerfile
+      target: master
 
     container_name: master
 
@@ -37,7 +38,8 @@ services:
   worker-1:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
+      target: worker
 
     container_name: worker-1
 
@@ -55,7 +57,8 @@ services:
   worker-2:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
+      target: worker
 
     container_name: worker-2
 
@@ -73,7 +76,8 @@ services:
   worker-3:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
+      target: worker
 
     container_name: worker-3
 

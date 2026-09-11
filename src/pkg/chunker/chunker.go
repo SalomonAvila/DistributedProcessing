@@ -171,13 +171,18 @@ func parseProcessRow(row []string, hMap map[string]int) *pb.ProcessDataChunk {
 		return uint32(n)
 	}
 
+	// NombreEntidad: en este dataset la columna real se llama "entidad",
+	// no "nombre_entidad" (así se llama en Contratos Electrónicos).
+	// ProveedoresUnicosConRespuestas: el fieldName real de Socrata viene
+	// truncado a "proveedores_unicos_con".
 	return &pb.ProcessDataChunk{
-		IdDelProceso:                    get("id_del_proceso"),
-		NitEntidad:                      get("nit_entidad"),
-		ProveedoresInvitados:            parseUint32("proveedores_invitados"),
-		ProveedoresUnicosConRespuestas: parseUint32("proveedores_unicos_con_respuestas"),
-		ModalidadDeContratacion:         get("modalidad_de_contratacion"),
-		EstadoDelProcedimiento:          get("estado_del_procedimiento"),
+		IdDelProceso:                   get("id_del_proceso"),
+		NitEntidad:                     get("nit_entidad"),
+		NombreEntidad:                  get("entidad"),
+		ProveedoresInvitados:           parseUint32("proveedores_invitados"),
+		ProveedoresUnicosConRespuestas: parseUint32("proveedores_unicos_con"),
+		ModalidadDeContratacion:        get("modalidad_de_contratacion"),
+		EstadoDelProcedimiento:         get("estado_del_procedimiento"),
 	}
 }
 
@@ -262,6 +267,7 @@ func parseContractRow(row []string, hMap map[string]int) *pb.ContractDataChunk {
 	return &pb.ContractDataChunk{
 		ProcesoDeCompra:            get("proceso_de_compra"),
 		NitEntidad:                 get("nit_entidad"),
+		NombreEntidad:              get("nombre_entidad"),
 		DocumentoProveedor:         get("documento_proveedor"),
 		ProveedorAdjudicado:        get("proveedor_adjudicado"),
 		ValorDelContrato:           parseUint64("valor_del_contrato"),

@@ -26,6 +26,12 @@ option go_package = "github.com/SalomonAvila/DistributedProcessing/proto";
 // --- Etapa 1: Entrada de Map por conjunto de datos ---
 
 // Registro individual de un chunk de Procesos de Contratación.
+//
+// Mapeo de columnas del CSV real (dataset p6dx-8zbt) a estos campos:
+// proveedores_unicos_con_respuestas <- "proveedores_unicos_con" (Socrata
+// trunca el fieldName real); nombre_entidad <- "entidad" (en este dataset
+// la columna de nombre de entidad se llama distinto que en Contratos
+// Electrónicos, que la llama "nombre_entidad").
 message ProcessDataChunk {
   string chunk_id = 1;
   string id_del_proceso = 2;
@@ -34,6 +40,7 @@ message ProcessDataChunk {
   uint32 proveedores_unicos_con_respuestas = 5;
   string modalidad_de_contratacion = 6;
   string estado_del_procedimiento = 7;
+  string nombre_entidad = 8;
 }
 
 // Registro individual de un chunk de Contratos Electrónicos.
@@ -46,6 +53,7 @@ message ContractDataChunk {
   uint64 valor_del_contrato = 6;
   string codigo_de_categoria_principal = 7;
   string fecha_de_firma = 8;
+  string nombre_entidad = 9;
 }
 
 // --- Etapa 1: Salida de Map / Reduce ---
