@@ -45,7 +45,7 @@ spec:
             - name: WORKERS
               value: "worker-0.worker:50051,worker-1.worker:50051,worker-2.worker:50051"
             - name: HEARTBEAT_TIMEOUT_SECONDS
-              value: "5"
+              value: "12"
           # No existe (todavía) un health check gRPC dedicado
           # (grpc.health.v1); tcpSocket es un chequeo mínimo de que el
           # puerto está escuchando. Reemplazar por un exec grpc_health_probe

@@ -79,6 +79,8 @@ spec:
               value: "master:50051"
             - name: TASK_DURATION_MS
               value: "100"
+            - name: HEARTBEAT_TIMEOUT_SECONDS
+              value: "1"
           readinessProbe:
             tcpSocket:
               port: 50051
