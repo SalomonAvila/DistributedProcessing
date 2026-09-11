@@ -247,6 +247,35 @@ Etapa 2 (join distribuido)
               Reporte de riesgo consolidado
 ```
 
+== Estrategia de particionamiento y asignación de datos (Chunker y Work Queue)
+
+=== Decisión
+
+Se adopta una estrategia de partición en micro-chunks dinámicos ($N \gg 3$ workers), donde el dataset de entrada se fragmenta en $N$ bloques pequeños gestionados a través de una cola de trabajo (Work Queue) en memoria en el Master, descartando la partición estática 1:1 ($N = 3$).
+
+=== Justificación y cumplimiento de métricas
+
+La partición estática $1:1$ asignaría un tercio ($\approx 33\%$) del dataset a cada worker de manera fija. Dicho enfoque presenta dos fallas críticas:
++ *Vulnerabilidad ante trabajadores rezagados (stragglers)*: Si un worker experimenta contención de CPU o datos más costosos de procesar, todo el pipeline queda detenido esperando a dicho worker.
++ *Incompatibilidad con el SLA de recuperación de tarea*: El documento de alcance (`01-alcance.typ`) exige un tiempo máximo de recuperación de tarea $\le 15$ segundos. Si un worker falla al procesar un chunk del $33\%$ del dataset, reasignar y recomputar dicho bloque tomaría varios minutos, violando el umbral.
+
+Con micro-chunks de tamaño objetivo entre 10 MB y 30 MB ($\approx 50.000$ a $150.000$ registros), el tiempo de procesamiento de cada chunk en Go es del orden de 1 a 3 segundos. Cuando el Master detecta la caída de un worker mediante el timeout de heartbeat ($\le 10$s), reasigna únicamente el micro-chunk que estaba en progreso a otro worker disponible ($\le 5$s), logrando la recuperación completa dentro del margen estricto de 15 segundos.
+
+Adicionalmente, el esquema de Work Queue permite que los workers más rápidos procesen más bloques sin requerir balanceo manual, y reduce el consumo pico de memoria RAM en los nodos al no requerir la carga del dataset completo en un único paso.
+
+=== Trade-offs
+
+#table(
+  columns: (1fr, 1fr, 1fr),
+  stroke: 0.5pt + gray,
+  inset: 8pt,
+  align: left,
+  table.header([*Aspecto*], [*Ventaja*], [*Desventaja*]),
+  [Granularidad de fallo], [Pérdida mínima de trabajo ante caída (1-3s)], [Mayor cantidad de mensajes RPC de asignación y reporte],
+  [Balanceo de carga], [Dinámico por demanda según velocidad real de cada worker], [Requiere mantener estado de cola de tareas en el Master],
+  [Consumo de memoria], [Bajo y predecible por worker (procesamiento por lotes)], [Overhead de deserialización gRPC distribuido en múltiples mensajes],
+)
+
 = Conclusiones y próximos pasos
 
 Las decisiones de usar Go, gRPC, Docker y Kubernetes quedan ratificadas: Go resulta ideal para sistemas distribuidos con alta concurrencia, gRPC ofrece máxima eficiencia en la comunicación entre servicios, Docker garantiza portabilidad de las imágenes, y Kubernetes resuelve la orquestación de procesos y recuperación automática de pods de forma separada y complementaria a la tolerancia a fallos a nivel de tarea que implementa el motor propio.

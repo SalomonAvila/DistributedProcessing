@@ -1,13 +1,237 @@
 // proto/mapreduce.proto
+//
+// Contratos de datos y protocolo de control del motor MapReduce.
+//
+// Los mensajes de negocio (sección 1) corresponden 1:1 a las tablas
+// definidas en docs/03-esquema-datos.typ.
+//
+// Los mensajes de control (sección 2) cubren el protocolo del motor
+// genérico: asignación de tareas, heartbeat, reporte de resultados
+// y transferencia de datos durante el shuffle.
+//
+// Los servicios gRPC (sección 3) definen las interfaces entre master
+// y workers.
+
 syntax = "proto3";
 
 package mapreduce;
 
 option go_package = "github.com/SalomonAvila/DistributedProcessing/proto";
 
-service WorkerService {
-  rpc Ping (PingRequest) returns (PingResponse);
+// ============================================================
+// 1. MENSAJES DE DATOS DE NEGOCIO (SECOP II)
+//    Ref: docs/03-esquema-datos.typ
+// ============================================================
+
+// --- Etapa 1: Entrada de Map por conjunto de datos ---
+
+// Registro individual de un chunk de Procesos de Contratación.
+message ProcessDataChunk {
+  string chunk_id = 1;
+  string id_del_proceso = 2;
+  string nit_entidad = 3;
+  uint32 proveedores_invitados = 4;
+  uint32 proveedores_unicos_con_respuestas = 5;
+  string modalidad_de_contratacion = 6;
+  string estado_del_procedimiento = 7;
 }
+
+// Registro individual de un chunk de Contratos Electrónicos.
+message ContractDataChunk {
+  string chunk_id = 1;
+  string proceso_de_compra = 2;
+  string nit_entidad = 3;
+  string documento_proveedor = 4;
+  string proveedor_adjudicado = 5;
+  uint64 valor_del_contrato = 6;
+  string codigo_de_categoria_principal = 7;
+  string fecha_de_firma = 8;
+}
+
+// --- Etapa 1: Salida de Map / Reduce ---
+
+// Job A: índice de competencia por proceso.
+// Clave de agrupación: id_del_proceso.
+message CompetitionMetrics {
+  string id_del_proceso = 1;
+  string nit_entidad = 2;
+  uint32 proveedores_invitados = 3;
+  uint32 proveedores_responden = 4;
+  float indice_competencia = 5;
+  string modalidad_de_contratacion = 6;
+  string estado_del_procedimiento = 7;
+}
+
+// Reduce B1: desviación de precio, agrupado por categoría UNSPSC.
+// Clave de agrupación: categoria_unspsc.
+message ContractPriceMetrics {
+  string proceso_de_compra = 1;
+  string nit_entidad = 2;
+  string documento_proveedor = 3;
+  uint64 valor_del_contrato = 4;
+  string categoria_unspsc = 5;
+  uint64 mediana_categoria = 6;
+  float desviacion_precio = 7;
+}
+
+// Reduce B2: concentración, agrupado por documento_proveedor + nit_entidad.
+// Clave de agrupación: documento_proveedor + nit_entidad.
+message ProviderConcentration {
+  string documento_proveedor = 1;
+  string nit_entidad = 2;
+  uint32 contratos_con_entidad = 3;
+  uint32 contratos_totales_proveedor = 4;
+  float concentracion_proveedor = 5;
+}
+
+// --- Salida final: indicador de riesgo consolidado ---
+
+// Un registro individual de riesgo por proceso.
+// Los campos de contrato son opcionales (left outer join: procesos sin
+// contrato se conservan con tiene_contrato = false).
+message RiskRecord {
+  string id_del_proceso = 1;
+  string nit_entidad = 2;
+  string nombre_entidad = 3;
+  bool tiene_contrato = 4;
+  string documento_proveedor = 5;
+  string nombre_proveedor = 6;
+  uint64 valor_contrato = 7;
+  float indice_competencia = 8;
+  float desviacion_precio = 9;
+  float concentracion = 10;
+  float puntuacion_riesgo = 11;
+  bool flag_riesgo_alto = 12;
+}
+
+// Resultado consolidado de un trabajo de análisis de riesgo.
+message RiskAnalysisResult {
+  string job_id = 1;
+  uint64 execution_time_ms = 2;
+  uint64 total_procesos_analizados = 3;
+  uint64 total_procesos_alto_riesgo = 4;
+  repeated RiskRecord registros_riesgo = 5;
+}
+
+// ============================================================
+// 2. MENSAJES DE CONTROL DEL MOTOR MapReduce
+// ============================================================
+
+// --- Enumeraciones ---
+
+// Tipo de job dentro del pipeline de dos etapas.
+enum JobType {
+  JOB_TYPE_UNSPECIFIED = 0;
+  JOB_A_COMPETITION = 1;    // Etapa 1: índice de competencia
+  JOB_B1_PRICE = 2;         // Etapa 1: desviación de precio
+  JOB_B2_CONCENTRATION = 3; // Etapa 1: concentración proveedor-entidad
+  JOB_JOIN = 4;             // Etapa 2: reduce-side join
+}
+
+// Fase de ejecución dentro de un job.
+enum TaskPhase {
+  TASK_PHASE_UNSPECIFIED = 0;
+  PHASE_MAP = 1;
+  PHASE_SHUFFLE = 2;
+  PHASE_REDUCE = 3;
+}
+
+// Estado de una tarea en la cola del master.
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_PENDING = 1;
+  TASK_ASSIGNED = 2;
+  TASK_IN_PROGRESS = 3;
+  TASK_COMPLETED = 4;
+  TASK_FAILED = 5;
+}
+
+// --- Asignación de tareas (master → worker) ---
+
+// El master asigna un chunk a un worker para procesamiento.
+message TaskAssignment {
+  string task_id = 1;          // Identificador único de la tarea
+  string chunk_id = 2;         // Identificador del chunk a procesar
+  JobType job_type = 3;        // Qué job ejecutar
+  TaskPhase phase = 4;         // En qué fase (map, shuffle, reduce)
+  repeated ProcessDataChunk process_records = 5;  // Datos si job A
+  repeated ContractDataChunk contract_records = 6; // Datos si job B1/B2
+}
+
+message TaskAssignmentAck {
+  bool accepted = 1;
+  string worker_id = 2;
+  string message = 3;
+}
+
+// --- Heartbeat (worker → master) ---
+
+// Heartbeat periódico del worker al master.
+// El master usa la ausencia de heartbeat para detectar workers caídos
+// (timeout configurable, meta ≤ 10s de detección según 01-alcance.typ).
+message HeartbeatRequest {
+  string worker_id = 1;
+  string current_task_id = 2;          // Vacío si el worker está idle
+  TaskStatus current_task_status = 3;
+  float progress_percent = 4;          // 0.0 a 1.0
+  int64 timestamp_ms = 5;              // Unix millis
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+}
+
+// --- Reporte de resultado de tarea (worker → master) ---
+
+// El worker reporta la finalización (exitosa o fallida) de una tarea.
+message TaskResult {
+  string task_id = 1;
+  string worker_id = 2;
+  TaskStatus status = 3;               // TASK_COMPLETED o TASK_FAILED
+  string error_message = 4;            // Mensaje de error si TASK_FAILED
+  int64 execution_time_ms = 5;         // Duración del procesamiento
+
+  // Resultados intermedios según el job y la fase.
+  // Solo uno de estos campos estará poblado según el job ejecutado.
+  repeated CompetitionMetrics competition_results = 6;
+  repeated ContractPriceMetrics price_results = 7;
+  repeated ProviderConcentration concentration_results = 8;
+  repeated RiskRecord risk_results = 9; // Para la Etapa 2 (join)
+}
+
+message TaskResultAck {
+  bool acknowledged = 1;
+  string message = 2;
+}
+
+// --- Shuffle: transferencia de pares clave-valor intermedios ---
+
+// Par clave-valor intermedio para transferencia durante el shuffle.
+// La clave determina a qué worker de Reduce se dirige el registro.
+// El valor contiene el registro intermedio según el job.
+message ShuffleEntry {
+  string key = 1; // Clave de agrupación (id_del_proceso, categoria_unspsc, etc.)
+  JobType job_type = 2;
+
+  // Exactamente uno de estos campos estará poblado según el job.
+  CompetitionMetrics competition = 3;
+  ContractPriceMetrics price = 4;
+  ProviderConcentration concentration = 5;
+}
+
+// Solicitud de transferencia de un lote de pares clave-valor.
+message ShuffleRequest {
+  string source_worker_id = 1;
+  string target_worker_id = 2;
+  repeated ShuffleEntry entries = 3;
+}
+
+message ShuffleResponse {
+  bool acknowledged = 1;
+  uint32 records_received = 2;
+}
+
+// --- Ping (conectividad, existente) ---
 
 message PingRequest {
   string from = 1;
@@ -15,4 +239,36 @@ message PingRequest {
 
 message PingResponse {
   string message = 1;
+}
+
+// ============================================================
+// 3. SERVICIOS gRPC
+// ============================================================
+
+// MasterService: RPCs que el worker invoca en el master.
+// El master escucha en su puerto gRPC y los workers se conectan a él.
+service MasterService {
+  // Heartbeat periódico del worker. El master detecta workers caídos
+  // por ausencia de heartbeat dentro de un timeout configurable.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Worker reporta la finalización (exitosa o fallida) de una tarea.
+  // En caso de fallo, el master devuelve el chunk a la cola de pendientes
+  // para reasignación a otro worker.
+  rpc ReportTaskResult(TaskResult) returns (TaskResultAck);
+}
+
+// WorkerService: RPCs que el master (u otro worker) invoca en un worker.
+// Cada worker escucha en su puerto gRPC.
+service WorkerService {
+  // Verificación de conectividad.
+  rpc Ping(PingRequest) returns (PingResponse);
+
+  // Master asigna un chunk/tarea a este worker para procesamiento.
+  rpc AssignTask(TaskAssignment) returns (TaskAssignmentAck);
+
+  // Recepción de datos intermedios durante la fase de shuffle.
+  // Otro worker (o el master, según la decisión de diseño de HU-2.5)
+  // envía los pares clave-valor que corresponden a este worker para Reduce.
+  rpc ReceiveShuffleData(ShuffleRequest) returns (ShuffleResponse);
 }
