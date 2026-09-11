@@ -36,8 +36,6 @@ Este documento define los contratos y estructuras de datos para las diferentes f
 
 Cada Worker recibe un fragmento del conjunto de Procesos de Contratación de SECOP II.
 
-Estos nombres de campo son los del modelo interno del sistema, no siempre coinciden con el fieldName real de la columna en el CSV publicado en datos.gov.co (dataset `p6dx-8zbt`). Diferencias conocidas: la columna de nombre de entidad se llama `entidad` (no `nombre_entidad`, como sí se llama en Contratos Electrónicos), y Socrata trunca el fieldName de proveedores únicos con respuesta a `proveedores_unicos_con`.
-
 #table(
   columns: (auto, auto, 1fr),
   stroke: 0.5pt + gray,
@@ -48,9 +46,8 @@ Estos nombres de campo son los del modelo interno del sistema, no siempre coinci
   [`source_dataset`], [`string`], [Identifica Procesos de Contratación como origen],
   [`id_del_proceso`], [`string`], [Identificador del proceso de compra en SECOP II],
   [`nit_entidad`], [`string`], [NIT de la entidad que publicó el proceso],
-  [`nombre_entidad`], [`string`], [Nombre de la entidad, viene de la columna real `entidad`],
   [`proveedores_invitados`], [`uint32`], [Número de proveedores invitados a participar],
-  [`proveedores_unicos_con_respuestas`], [`uint32`], [Proveedores únicos que presentaron respuesta, viene de la columna real `proveedores_unicos_con`],
+  [`proveedores_unicos_con_respuestas`], [`uint32`], [Proveedores únicos que presentaron respuesta],
   [`modalidad_de_contratacion`], [`string`], [Modalidad de selección del proceso],
   [`estado_del_procedimiento`], [`string`], [Estado actual del proceso],
 )
@@ -69,7 +66,6 @@ Cada Worker recibe un fragmento del conjunto de Contratos Electrónicos de SECOP
   [`source_dataset`], [`string`], [Identifica Contratos Electrónicos como origen],
   [`proceso_de_compra`], [`string`], [Identificador del proceso asociado a este contrato],
   [`nit_entidad`], [`string`], [NIT de la entidad contratante],
-  [`nombre_entidad`], [`string`], [Nombre de la entidad contratante],
   [`documento_proveedor`], [`string`], [NIT o cédula del proveedor adjudicado],
   [`proveedor_adjudicado`], [`string`], [Nombre del proveedor adjudicado],
   [`valor_del_contrato`], [`uint64`], [Valor total del contrato en pesos],
@@ -307,7 +303,6 @@ message ProcessDataChunk {
   uint32 proveedores_unicos_con_respuestas = 5;
   string modalidad_de_contratacion = 6;
   string estado_del_procedimiento = 7;
-  string nombre_entidad = 8;
 }
 
 message ContractDataChunk {
@@ -319,7 +314,6 @@ message ContractDataChunk {
   uint64 valor_del_contrato = 6;
   string codigo_de_categoria_principal = 7;
   string fecha_de_firma = 8;
-  string nombre_entidad = 9;
 }
 
 message CompetitionMetrics {
