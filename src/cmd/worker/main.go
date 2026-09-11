@@ -52,13 +52,24 @@ func parseWorkerAddresses(raw string) map[string]string {
 	return workers
 }
 
+// extractWorkerID deriva el ID de worker a partir de una dirección
+// "host:port". En k8s el host es un FQDN de pod ("worker-0.worker",
+// vía el Service headless "worker"), así que también se corta por "."
+// para que el ID coincida con WORKER_ID (nombre de pod plano, ej.
+// "worker-0") usado como clave del mapa de destinos de shuffle.
 func extractWorkerID(addr string) string {
-	parts := strings.Split(addr, ":")
-	if len(parts) > 0 && parts[0] != "" {
-		return parts[0]
+	host := addr
+	if idx := strings.Index(addr, ":"); idx != -1 {
+		host = addr[:idx]
+	}
+	if idx := strings.Index(host, "."); idx != -1 {
+		host = host[:idx]
+	}
+	if host == "" {
+		return addr
 	}
 
-	return addr
+	return host
 }
 
 func (s *workerServer) AssignTask(ctx context.Context, req *pb.TaskAssignment) (*pb.TaskAssignmentAck, error) {

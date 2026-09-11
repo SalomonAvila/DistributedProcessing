@@ -77,8 +77,18 @@ spec:
               value: "50051"
             - name: MASTER_ADDRESS
               value: "master:50051"
+            # Direcciones de los pares, para el shuffle entre workers en
+            # la fase MAP (ver ReceiveShuffleData). Sin esto, cada worker
+            # usaba el default hardcodeado del binario (worker-1/2/3, que
+            # no coincide con los pods reales worker-0/1/2).
+            - name: WORKERS
+              value: "worker-0.worker:50051,worker-1.worker:50051,worker-2.worker:50051"
             - name: TASK_DURATION_MS
               value: "100"
+            # Más frecuente que el default (2s) para dar margen frente al
+            # timeout del master (12s) en la red real entre nodos físicos.
+            - name: HEARTBEAT_INTERVAL_SECONDS
+              value: "1"
           readinessProbe:
             tcpSocket:
               port: 50051
