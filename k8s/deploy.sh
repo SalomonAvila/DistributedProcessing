@@ -24,4 +24,3 @@ kubectl -n "$NAMESPACE" rollout status deployment/master --timeout=120s
 
 echo "==> Pods:"
 kubectl -n "$NAMESPACE" get pods -o wide
-
