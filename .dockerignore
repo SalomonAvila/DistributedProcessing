@@ -1,0 +1,9 @@
+# Los datasets reales (20-40GB, ver data/README.md) nunca deben entrar al
+# build context de Docker: aunque el Dockerfile solo hace COPY de
+# data/synthetic/*.csv (unos pocos KB), sin este .dockerignore `docker
+# build .` igual empaqueta y manda TODO data/raw/ al daemon antes de
+# evaluar qué instrucciones lo usan — con datasets reales eso vuelve el
+# build inviable (o directamente lo tumba) aunque nunca se copien.
+data/raw
+
+.git
