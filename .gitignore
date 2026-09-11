@@ -2,3 +2,4 @@ docs/*.pdf
 docs/*.png
 .vscode
 *.pb.go
+*bin
