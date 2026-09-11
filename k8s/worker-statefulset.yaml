@@ -1,0 +1,98 @@
+# Service headless: da a cada pod un nombre DNS estable
+# (worker-0.worker, worker-1.worker, worker-2.worker), necesario porque
+# el master de esta app resuelve direcciones estáticas de workers al
+# arrancar (no hay descubrimiento dinámico vía la API de Kubernetes).
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: distributed-processing
+spec:
+  clusterIP: None
+  selector:
+    app: worker
+  ports:
+    - port: 50051
+      targetPort: 50051
+      name: grpc
+---
+# StatefulSet con 3 réplicas fijas a los nodos físicos worker2/worker3/worker4
+# (nodeAffinity), y podAntiAffinity para que cada réplica caiga en un nodo
+# físico distinto (tolerancia a fallos a nivel de nodo).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: worker
+  namespace: distributed-processing
+  labels:
+    app: worker
+spec:
+  serviceName: worker
+  replicas: 3
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - worker2
+                      - worker3
+                      - worker4
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: worker
+              topologyKey: kubernetes.io/hostname
+      # Solo necesario si el paquete en GHCR quedó privado (ver k8s/README.md).
+      # imagePullSecrets:
+      #   - name: ghcr-pull-secret
+      containers:
+        - name: worker
+          image: ghcr.io/salomonavila/distributedprocessing-worker:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 50051
+              name: grpc
+          env:
+            # El StatefulSet aplica el mismo PodSpec a las 3 réplicas;
+            # WORKER_ID se deriva del nombre del propio pod (worker-0,
+            # worker-1, worker-2) vía Downward API en vez de un literal
+            # fijo, para que cada réplica se identifique distinto.
+            - name: WORKER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: WORKER_PORT
+              value: "50051"
+            - name: MASTER_ADDRESS
+              value: "master:50051"
+            - name: TASK_DURATION_MS
+              value: "100"
+          readinessProbe:
+            tcpSocket:
+              port: 50051
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 50051
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "512Mi"
