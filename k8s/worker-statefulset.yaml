@@ -85,9 +85,13 @@ spec:
               value: "worker-0.worker:50051,worker-1.worker:50051,worker-2.worker:50051"
             - name: TASK_DURATION_MS
               value: "100"
+<<<<<<< HEAD
             # Más frecuente que el default (2s) para dar margen frente al
             # timeout del master (12s) en la red real entre nodos físicos.
             - name: HEARTBEAT_INTERVAL_SECONDS
+=======
+            - name: HEARTBEAT_TIMEOUT_SECONDS
+>>>>>>> cff223618c7551d0c742d7585d05b5135ad6e94c
               value: "1"
           readinessProbe:
             tcpSocket:
