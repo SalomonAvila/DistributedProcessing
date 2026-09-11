@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/SalomonAvila/DistributedProcessing/pkg/chunker"
 	"github.com/SalomonAvila/DistributedProcessing/pkg/master"
 	pb "github.com/SalomonAvila/DistributedProcessing/proto"
 	"google.golang.org/grpc"
@@ -99,46 +101,61 @@ func main() {
 
 	log.Println("[Master] Todos los workers registrados y listos en el WorkerPool.")
 
-	// 4. Encolar conjunto de micro-chunks sintéticos para validar el reparto dinámico (DoD HU-2.2)
-	// Creamos 9 tareas sintéticas (N=9 >> 3 workers) para demostrar la cola de trabajo
-	numSyntheticChunks := 9
-	log.Printf("[Master] Generando y encolando %d chunks sintéticos en la cola de tareas...", numSyntheticChunks)
+	// 4. Cargar los datasets (streaming vía chunker, nunca todo en memoria)
+	// y encolar una tarea MAP por chunk: Job A sobre Procesos de
+	// Contratación, y Job B1 (precio) + Job B2 (concentración) sobre
+	// Contratos Electrónicos (mismo chunk, dos jobs distintos).
+	dataProcesosPath := os.Getenv("DATA_PROCESOS_PATH")
+	if dataProcesosPath == "" {
+		dataProcesosPath = "/data/procesos-de-contratacion.csv"
+	}
+	dataContratosPath := os.Getenv("DATA_CONTRATOS_PATH")
+	if dataContratosPath == "" {
+		dataContratosPath = "/data/contratos-electronicos.csv"
+	}
 
-	for i := 1; i <= numSyntheticChunks; i++ {
-		taskID := fmt.Sprintf("task_synth_%04d", i)
-		chunkID := fmt.Sprintf("proc_chunk_%04d", i)
+	mapChunkSize := 5
+	if envChunkSize := os.Getenv("MAP_CHUNK_SIZE"); envChunkSize != "" {
+		if val, err := strconv.Atoi(envChunkSize); err == nil && val > 0 {
+			mapChunkSize = val
+		}
+	}
 
-		taskManager.Enqueue(&master.Task{
-			ID: taskID,
-			Assignment: &pb.TaskAssignment{
-				TaskId:  taskID,
-				ChunkId: chunkID,
-				JobType: pb.JobType_JOB_A_COMPETITION,
-				Phase:   pb.TaskPhase_PHASE_MAP,
-			},
-		})
+	numProcessChunks, err := enqueueProcessTasks(taskManager, dataProcesosPath, mapChunkSize)
+	if err != nil {
+		log.Fatalf("[Master] Error cargando procesos de %s: %v", dataProcesosPath, err)
+	}
+
+	numContractChunks, err := enqueueContractTasks(taskManager, dataContratosPath, mapChunkSize)
+	if err != nil {
+		log.Fatalf("[Master] Error cargando contratos de %s: %v", dataContratosPath, err)
 	}
 
 	stats := taskManager.Stats()
-	log.Printf("[Master] Cola inicializada: %d pendientes, %d en progreso, %d completadas",
-		stats.Pending, stats.InProgress, stats.Completed)
+	log.Printf(
+		"[Master] Cola inicializada: %d chunks de Procesos (Job A), %d chunks de Contratos x2 jobs (B1+B2) → %d tareas MAP pendientes",
+		numProcessChunks, numContractChunks, stats.Pending,
+	)
 
 	// 5. Iniciar el despacho de tareas
 	dispatchCtx := context.Background()
 	log.Println("[Master] Iniciando despacho inicial de tareas hacia workers...")
 	coordinator.DispatchPendingTasks(dispatchCtx)
 
-	// 6. Esperar la finalización de todas las tareas sintéticas (con timeout de seguridad de 60s)
-	waitCtx, cancelWait := context.WithTimeout(context.Background(), 60*time.Second)
+	// 6. Esperar la finalización del pipeline completo (MAP+REDUCE de los
+	// 3 jobs más el JOIN final), con timeout de seguridad.
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancelWait()
 
 	if err := coordinator.WaitCompletion(waitCtx); err != nil {
 		log.Printf("[Master] Error esperando finalización: %v", err)
 	} else {
 		finalStats := taskManager.Stats()
-		log.Printf("[Master] Demostracion exitosa de reparto de tareas:")
-		log.Printf("[Master] Total: %d, Completadas: %d, Fallidas: %d, En progreso: %d",
+		risk := coordinator.RiskResults()
+		log.Printf("[Master] Pipeline ejecutado con éxito:")
+		log.Printf("[Master] Tareas → Total: %d, Completadas: %d, Fallidas: %d, En progreso: %d",
 			finalStats.Total, finalStats.Completed, finalStats.Failed, finalStats.InProgress)
+		log.Printf("[Master] Análisis de riesgo → %d procesos evaluados", len(risk))
 	}
 
 	// 7. Mantener el proceso vivo hasta recibir señal de terminación
@@ -167,4 +184,102 @@ func extractWorkerID(addr string) string {
 		return addr
 	}
 	return host
+}
+
+// enqueueProcessTasks lee el CSV de Procesos de Contratación en streaming
+// (nunca carga el archivo entero en memoria) y encola una tarea MAP de
+// Job A por cada chunk. Retorna la cantidad de chunks encolados.
+func enqueueProcessTasks(tm *master.TaskManager, path string, chunkSize int) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, fmt.Errorf("abriendo %s: %w", path, err)
+	}
+	defer f.Close()
+
+	reader, err := chunker.NewProcessCSVReader(f, chunkSize)
+	if err != nil {
+		return 0, fmt.Errorf("leyendo cabecera de %s: %w", path, err)
+	}
+
+	count := 0
+	for {
+		chunk, err := reader.NextChunk()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return count, fmt.Errorf("leyendo chunk de %s: %w", path, err)
+		}
+
+		taskID := fmt.Sprintf("job_a_map_%s", chunk.ChunkID)
+		tm.Enqueue(&master.Task{
+			ID: taskID,
+			Assignment: &pb.TaskAssignment{
+				TaskId:         taskID,
+				ChunkId:        chunk.ChunkID,
+				JobType:        pb.JobType_JOB_A_COMPETITION,
+				Phase:          pb.TaskPhase_PHASE_MAP,
+				ProcessRecords: chunk.Records,
+			},
+		})
+		count++
+	}
+
+	return count, nil
+}
+
+// enqueueContractTasks lee el CSV de Contratos Electrónicos en streaming y
+// encola, por cada chunk, dos tareas MAP independientes: Job B1 (desviación
+// de precio) y Job B2 (concentración proveedor-entidad). Ambos jobs parten
+// del mismo dataset crudo pero agrupan por claves distintas.
+func enqueueContractTasks(tm *master.TaskManager, path string, chunkSize int) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, fmt.Errorf("abriendo %s: %w", path, err)
+	}
+	defer f.Close()
+
+	reader, err := chunker.NewContractCSVReader(f, chunkSize)
+	if err != nil {
+		return 0, fmt.Errorf("leyendo cabecera de %s: %w", path, err)
+	}
+
+	count := 0
+	for {
+		chunk, err := reader.NextChunk()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return count, fmt.Errorf("leyendo chunk de %s: %w", path, err)
+		}
+
+		priceTaskID := fmt.Sprintf("job_b1_map_%s", chunk.ChunkID)
+		tm.Enqueue(&master.Task{
+			ID: priceTaskID,
+			Assignment: &pb.TaskAssignment{
+				TaskId:          priceTaskID,
+				ChunkId:         chunk.ChunkID,
+				JobType:         pb.JobType_JOB_B1_PRICE,
+				Phase:           pb.TaskPhase_PHASE_MAP,
+				ContractRecords: chunk.Records,
+			},
+		})
+
+		concTaskID := fmt.Sprintf("job_b2_map_%s", chunk.ChunkID)
+		tm.Enqueue(&master.Task{
+			ID: concTaskID,
+			Assignment: &pb.TaskAssignment{
+				TaskId:          concTaskID,
+				ChunkId:         chunk.ChunkID,
+				JobType:         pb.JobType_JOB_B2_CONCENTRATION,
+				Phase:           pb.TaskPhase_PHASE_MAP,
+				ContractRecords: chunk.Records,
+			},
+		})
+
+		count++
+	}
+
+	return count, nil
 }

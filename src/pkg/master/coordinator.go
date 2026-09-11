@@ -7,28 +7,68 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SalomonAvila/DistributedProcessing/pkg/jobs/join"
 	pb "github.com/SalomonAvila/DistributedProcessing/proto"
 )
+
+// jobTypesInScope son los jobs de Etapa 1 que el Coordinator despacha y
+// reduce antes de correr el JOIN de Etapa 2.
+var jobTypesInScope = []pb.JobType{
+	pb.JobType_JOB_A_COMPETITION,
+	pb.JobType_JOB_B1_PRICE,
+	pb.JobType_JOB_B2_CONCENTRATION,
+}
 
 // Coordinator coordina la ejecución de tareas entre el TaskManager y el WorkerPool,
 // e implementa el servidor gRPC MasterServiceServer.
 type Coordinator struct {
 	pb.UnimplementedMasterServiceServer
 
-	TM            *TaskManager
-	WP            *WorkerPool
-	mu            sync.Mutex
-	doneChan      chan struct{}
-	allDone       bool
-	reduceStarted bool
+	TM       *TaskManager
+	WP       *WorkerPool
+	mu       sync.Mutex
+	doneChan chan struct{}
+	allDone  bool
+
+	reduceStartedFor map[pb.JobType]bool
+	joinDone         bool
+
+	resultsMu            sync.Mutex
+	competitionResults   []*pb.CompetitionMetrics
+	priceResults         []*pb.ContractPriceMetrics
+	concentrationResults []*pb.ProviderConcentration
+	riskResults          []*pb.RiskRecord
 }
 
 // NewCoordinator inicializa un nuevo Coordinator.
 func NewCoordinator(tm *TaskManager, wp *WorkerPool) *Coordinator {
 	return &Coordinator{
-		TM:       tm,
-		WP:       wp,
-		doneChan: make(chan struct{}),
+		TM:               tm,
+		WP:               wp,
+		doneChan:         make(chan struct{}),
+		reduceStartedFor: make(map[pb.JobType]bool),
+	}
+}
+
+// RiskResults retorna los resultados finales del JOIN (Etapa 2), una vez
+// que WaitCompletion retorna sin error.
+func (c *Coordinator) RiskResults() []*pb.RiskRecord {
+	c.resultsMu.Lock()
+	defer c.resultsMu.Unlock()
+
+	return append([]*pb.RiskRecord(nil), c.riskResults...)
+}
+
+func jobTypeSlug(jobType pb.JobType) string {
+	switch jobType {
+	case pb.JobType_JOB_A_COMPETITION:
+		return "job_a"
+	case pb.JobType_JOB_B1_PRICE:
+		return "job_b1"
+	case pb.JobType_JOB_B2_CONCENTRATION:
+		return "job_b2"
+	default:
+		return "job_unknown"
 	}
 }
 
@@ -53,26 +93,28 @@ func (c *Coordinator) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (
 	return &pb.HeartbeatResponse{Acknowledged: true}, nil
 }
 
-func (c *Coordinator) startCompetitionReduce() {
+// startReduceForJob encola una tarea REDUCE por worker registrado para el
+// job dado. Cada worker reduce la partición de shuffle que acumuló
+// localmente durante el MAP (ver ReceiveShuffleData en el worker), así que
+// la tarea se fija a ESE worker puntual vía TargetWorkerID.
+func (c *Coordinator) startReduceForJob(jobType pb.JobType) {
 	workers := c.WP.GetAllWorkers()
 
 	log.Printf(
-		"[Master] Iniciando fase REDUCE con %d workers",
-		len(workers),
+		"[Master] Todos los MAP de %s completados. Iniciando REDUCE con %d workers...",
+		jobType, len(workers),
 	)
 
 	for _, worker := range workers {
-		taskID := fmt.Sprintf(
-			"reduce_%s",
-			worker.ID,
-		)
+		taskID := fmt.Sprintf("reduce_%s_%s", jobTypeSlug(jobType), worker.ID)
 
 		c.TM.Enqueue(&Task{
-			ID: taskID,
+			ID:             taskID,
+			TargetWorkerID: worker.ID,
 			Assignment: &pb.TaskAssignment{
 				TaskId:  taskID,
-				ChunkId: fmt.Sprintf("reduce_%s", worker.ID),
-				JobType: pb.JobType_JOB_A_COMPETITION,
+				ChunkId: taskID,
+				JobType: jobType,
 				Phase:   pb.TaskPhase_PHASE_REDUCE,
 			},
 		})
@@ -81,29 +123,110 @@ func (c *Coordinator) startCompetitionReduce() {
 	go c.DispatchPendingTasks(context.Background())
 }
 
-func (c *Coordinator) maybeStartReduce() {
+// maybeStartReduce dispara el REDUCE de un job apenas todas sus tareas MAP
+// terminan. Se llama una vez por cada TaskResult de MAP que llega; la
+// bandera reduceStartedFor evita encolarlo más de una vez.
+func (c *Coordinator) maybeStartReduce(jobType pb.JobType) {
 	c.mu.Lock()
 
-	if c.reduceStarted {
+	if c.reduceStartedFor[jobType] {
 		c.mu.Unlock()
 		return
 	}
 
-	if !c.TM.AllTasksCompletedForPhase(
-		pb.TaskPhase_PHASE_MAP,
-	) {
+	if !c.TM.AllTasksCompletedForJobPhase(jobType, pb.TaskPhase_PHASE_MAP) {
 		c.mu.Unlock()
 		return
 	}
 
-	c.reduceStarted = true
+	c.reduceStartedFor[jobType] = true
 	c.mu.Unlock()
 
-	log.Println(
-		"[Master] Todos los MAP completados. Iniciando REDUCE...",
+	c.startReduceForJob(jobType)
+}
+
+// collectReduceResult acumula el resultado de una tarea REDUCE completada
+// para el job correspondiente, para poder correr el JOIN cuando las tres
+// fases REDUCE (A, B1, B2) hayan terminado.
+func (c *Coordinator) collectReduceResult(jobType pb.JobType, result *pb.TaskResult) {
+	c.resultsMu.Lock()
+	defer c.resultsMu.Unlock()
+
+	switch jobType {
+	case pb.JobType_JOB_A_COMPETITION:
+		c.competitionResults = append(c.competitionResults, result.CompetitionResults...)
+	case pb.JobType_JOB_B1_PRICE:
+		c.priceResults = append(c.priceResults, result.PriceResults...)
+	case pb.JobType_JOB_B2_CONCENTRATION:
+		c.concentrationResults = append(c.concentrationResults, result.ConcentrationResults...)
+	}
+}
+
+// maybeRunJoin corre el JOIN de Etapa 2 apenas las tres fases REDUCE de
+// Etapa 1 terminaron. El JOIN opera sobre los resultados ya reducidos (chicos
+// comparado con el dataset crudo), así que se corre directo en el master en
+// vez de despacharlo como tarea a un worker.
+func (c *Coordinator) maybeRunJoin() {
+	c.mu.Lock()
+
+	if c.joinDone {
+		c.mu.Unlock()
+		return
+	}
+
+	for _, jt := range jobTypesInScope {
+		if !c.TM.AllTasksCompletedForJobPhase(jt, pb.TaskPhase_PHASE_REDUCE) {
+			c.mu.Unlock()
+			return
+		}
+	}
+
+	c.joinDone = true
+	c.mu.Unlock()
+
+	c.resultsMu.Lock()
+	competition := append([]*pb.CompetitionMetrics(nil), c.competitionResults...)
+	price := append([]*pb.ContractPriceMetrics(nil), c.priceResults...)
+	concentration := append([]*pb.ProviderConcentration(nil), c.concentrationResults...)
+	c.resultsMu.Unlock()
+
+	log.Printf(
+		"[Master] Las 3 fases REDUCE terminaron (A=%d, B1=%d, B2=%d resultados). Ejecutando JOIN...",
+		len(competition), len(price), len(concentration),
 	)
 
-	c.startCompetitionReduce()
+	risk := join.Join(competition, price, concentration)
+
+	highRisk := 0
+	for _, r := range risk {
+		if r.FlagRiesgoAlto {
+			highRisk++
+		}
+	}
+
+	c.resultsMu.Lock()
+	c.riskResults = risk
+	c.resultsMu.Unlock()
+
+	log.Printf(
+		"[Master] JOIN completo: %d procesos analizados, %d de alto riesgo (score >= %.2f).",
+		len(risk), highRisk, join.HighRiskThreshold,
+	)
+
+	maxSample := 10
+	for i, r := range risk {
+		if i >= maxSample {
+			log.Printf("[Master] ... (%d más, truncado)", len(risk)-maxSample)
+			break
+		}
+		log.Printf(
+			"[Master] Riesgo: proceso=%s entidad=%s tiene_contrato=%v competencia=%.2f desviacion_precio=%.2f concentracion=%.2f score=%.2f alto_riesgo=%v",
+			r.IdDelProceso, r.NitEntidad, r.TieneContrato, r.IndiceCompetencia,
+			r.DesviacionPrecio, r.Concentracion, r.PuntuacionRiesgo, r.FlagRiesgoAlto,
+		)
+	}
+
+	c.checkDone()
 }
 
 // ReportTaskResult es invocado por un worker al finalizar una tarea.
@@ -136,11 +259,14 @@ func (c *Coordinator) ReportTaskResult(ctx context.Context, req *pb.TaskResult) 
 
 	task, exists := c.TM.GetTask(req.TaskId)
 
-	if exists &&
-		task.Assignment != nil &&
-		task.Assignment.Phase == pb.TaskPhase_PHASE_MAP {
-
-		go c.maybeStartReduce()
+	if exists && task.Assignment != nil && req.Status == pb.TaskStatus_TASK_COMPLETED {
+		switch task.Assignment.Phase {
+		case pb.TaskPhase_PHASE_MAP:
+			go c.maybeStartReduce(task.Assignment.JobType)
+		case pb.TaskPhase_PHASE_REDUCE:
+			c.collectReduceResult(task.Assignment.JobType, req)
+			go c.maybeRunJoin()
+		}
 	}
 
 	// Despachar inmediatamente nuevas tareas pendientes
@@ -155,22 +281,32 @@ func (c *Coordinator) ReportTaskResult(ctx context.Context, req *pb.TaskResult) 
 	}, nil
 }
 
-// DispatchPendingTasks recorre la cola de tareas pendientes y las asigna a los workers IDLE.
+// DispatchPendingTasks recorre la cola de tareas pendientes y las asigna a
+// workers IDLE. Las tareas MAP van a cualquier worker libre; las tareas con
+// TargetWorkerID (REDUCE) solo se despachan cuando ESE worker puntual está
+// libre, porque cada worker reduce su propia partición de shuffle local —
+// mandarla a otro worker daría un resultado vacío o incorrecto.
 func (c *Coordinator) DispatchPendingTasks(ctx context.Context) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for {
-		worker := c.WP.GetIdleWorker()
-		if worker == nil {
-			// No hay workers libres
-			break
+	pending := c.TM.DrainPending()
+	deferred := make([]*Task, 0)
+
+	for _, task := range pending {
+		var worker *WorkerNode
+
+		if task.TargetWorkerID != "" {
+			if w, ok := c.WP.GetWorker(task.TargetWorkerID); ok && w.Status == WorkerStatusIdle {
+				worker = w
+			}
+		} else {
+			worker = c.WP.GetIdleWorker()
 		}
 
-		task := c.TM.Dequeue()
-		if task == nil {
-			// No hay tareas pendientes
-			break
+		if worker == nil {
+			deferred = append(deferred, task)
+			continue
 		}
 
 		// Asignar la tarea al worker
@@ -178,10 +314,17 @@ func (c *Coordinator) DispatchPendingTasks(ctx context.Context) {
 		if _, err := c.TM.MarkInProgress(task.ID, worker.ID); err != nil {
 			log.Printf("[Master] Error al marcar tarea %s en progreso: %v", task.ID, err)
 			c.WP.SetStatus(worker.ID, WorkerStatusIdle, "")
+			deferred = append(deferred, task)
 			continue
 		}
 
 		go c.assignTaskAsync(ctx, worker, task)
+	}
+
+	// Las que no se pudieron despachar en esta pasada vuelven a la cola,
+	// para reintentarse en la próxima llamada (próximo ReportTaskResult).
+	for _, task := range deferred {
+		c.TM.Enqueue(task)
 	}
 }
 
@@ -232,9 +375,7 @@ func (c *Coordinator) checkDone() {
 		return
 	}
 
-	if !c.TM.AllTasksCompletedForPhase(
-		pb.TaskPhase_PHASE_REDUCE,
-	) {
+	if !c.joinDone {
 		return
 	}
 
@@ -243,7 +384,7 @@ func (c *Coordinator) checkDone() {
 	stats := c.TM.Stats()
 
 	log.Printf(
-		"[Master] Job A completado: total=%d completed=%d failed=%d",
+		"[Master] Pipeline completo (Job A + B1 + B2 + JOIN): total=%d completed=%d failed=%d",
 		stats.Total,
 		stats.Completed,
 		stats.Failed,

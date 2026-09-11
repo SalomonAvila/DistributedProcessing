@@ -20,9 +20,14 @@ const (
 
 // Task encapsula la información de una tarea asignable a un worker.
 type Task struct {
-	ID                string
-	Assignment        *pb.TaskAssignment
-	State             TaskState
+	ID         string
+	Assignment *pb.TaskAssignment
+	State      TaskState
+	// TargetWorkerID, si no está vacío, fija a qué worker específico debe
+	// ir esta tarea (usado en REDUCE: cada worker reduce su propia
+	// partición de shuffle, así que la tarea no puede ir a "cualquier"
+	// worker idle como en MAP).
+	TargetWorkerID    string
 	AssignedWorkerID  string
 	AssignedAt        time.Time
 	CompletedAt       time.Time
@@ -83,6 +88,19 @@ func (tm *TaskManager) Dequeue() *Task {
 	task := tm.pending[0]
 	tm.pending = tm.pending[1:]
 	return task
+}
+
+// DrainPending extrae TODAS las tareas pendientes de una sola vez (FIFO),
+// dejando la cola vacía. Pensado para que el Coordinator pueda evaluar cada
+// una contra el estado actual de los workers (p.ej. tareas con
+// TargetWorkerID) sin perder las que no se pueden despachar todavía.
+func (tm *TaskManager) DrainPending() []*Task {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	drained := tm.pending
+	tm.pending = make([]*Task, 0)
+	return drained
 }
 
 // MarkInProgress transiciona una tarea a estado IN_PROGRESS y la asocia al worker asignado.
@@ -223,6 +241,35 @@ func (tm *TaskManager) AllTasksCompletedForPhase(
 
 	for _, task := range tm.allTasks {
 		if task.Assignment == nil ||
+			task.Assignment.Phase != phase {
+			continue
+		}
+
+		found = true
+
+		if task.State != TaskCompleted {
+			return false
+		}
+	}
+
+	return found
+}
+
+// AllTasksCompletedForJobPhase evalúa lo mismo que AllTasksCompletedForPhase
+// pero acotado a un job_type puntual, para poder correr varios jobs en
+// paralelo (cada uno con sus propias fases MAP/REDUCE) sin que se pisen.
+func (tm *TaskManager) AllTasksCompletedForJobPhase(
+	jobType pb.JobType,
+	phase pb.TaskPhase,
+) bool {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+
+	found := false
+
+	for _, task := range tm.allTasks {
+		if task.Assignment == nil ||
+			task.Assignment.JobType != jobType ||
 			task.Assignment.Phase != phase {
 			continue
 		}

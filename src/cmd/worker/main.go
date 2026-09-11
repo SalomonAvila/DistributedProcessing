@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/SalomonAvila/DistributedProcessing/pkg/jobs/competition"
+	"github.com/SalomonAvila/DistributedProcessing/pkg/jobs/concentration"
+	"github.com/SalomonAvila/DistributedProcessing/pkg/jobs/price"
 	pb "github.com/SalomonAvila/DistributedProcessing/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -25,10 +27,21 @@ type workerServer struct {
 	mu            sync.Mutex
 	currentTaskID string
 
-	shuffleMu     sync.Mutex
-	shuffleBuffer map[string][]*pb.CompetitionMetrics
+	shuffleMu sync.Mutex
+	// shuffleBuffer acumula las entradas de shuffle recibidas durante MAP,
+	// agrupadas por clave compuesta shuffleBufferKey(jobType, key) — así
+	// un mismo worker puede reducir varios jobs (A, B1, B2) sin que sus
+	// particiones se mezclen entre sí.
+	shuffleBuffer map[string][]*pb.ShuffleEntry
 
 	workers map[string]string
+}
+
+// shuffleBufferKey arma la clave compuesta job_type+clave de negocio para
+// el buffer de shuffle, de forma que cada job mantenga su propio espacio de
+// agrupación aunque compartan claves de negocio por casualidad.
+func shuffleBufferKey(jobType pb.JobType, key string) string {
+	return fmt.Sprintf("%d\x00%s", jobType, key)
 }
 
 func (s *workerServer) Ping(ctx context.Context, req *pb.PingRequest) (*pb.PingResponse, error) {
@@ -114,6 +127,26 @@ func (s *workerServer) executeTask(task *pb.TaskAssignment) {
 
 		result, err = s.executeCompetitionReduce(task)
 
+	case task.JobType == pb.JobType_JOB_B1_PRICE &&
+		task.Phase == pb.TaskPhase_PHASE_MAP:
+
+		result, err = s.executeContractMap(task, price.Map)
+
+	case task.JobType == pb.JobType_JOB_B1_PRICE &&
+		task.Phase == pb.TaskPhase_PHASE_REDUCE:
+
+		result, err = s.executePriceReduce(task)
+
+	case task.JobType == pb.JobType_JOB_B2_CONCENTRATION &&
+		task.Phase == pb.TaskPhase_PHASE_MAP:
+
+		result, err = s.executeContractMap(task, concentration.Map)
+
+	case task.JobType == pb.JobType_JOB_B2_CONCENTRATION &&
+		task.Phase == pb.TaskPhase_PHASE_REDUCE:
+
+		result, err = s.executeConcentrationReduce(task)
+
 	default:
 		err = fmt.Errorf(
 			"job/fase no soportado: job=%s phase=%s",
@@ -182,22 +215,40 @@ func (s *workerServer) reportTaskResult(result *pb.TaskResult) {
 		ack.Acknowledged,
 	)
 }
+
+// groupsForJob extrae del shuffleBuffer solo las entradas que pertenecen al
+// job dado, agrupadas por su clave de negocio (sin el prefijo de job_type).
+func (s *workerServer) groupsForJob(jobType pb.JobType) map[string][]*pb.ShuffleEntry {
+	prefix := shuffleBufferKey(jobType, "")
+
+	s.shuffleMu.Lock()
+	defer s.shuffleMu.Unlock()
+
+	groups := make(map[string][]*pb.ShuffleEntry, len(s.shuffleBuffer))
+	for bufKey, entries := range s.shuffleBuffer {
+		if !strings.HasPrefix(bufKey, prefix) {
+			continue
+		}
+		key := strings.TrimPrefix(bufKey, prefix)
+		groups[key] = append([]*pb.ShuffleEntry(nil), entries...)
+	}
+	return groups
+}
+
 func (s *workerServer) executeCompetitionReduce(
 	task *pb.TaskAssignment,
 ) (*pb.TaskResult, error) {
 
-	s.shuffleMu.Lock()
+	entryGroups := s.groupsForJob(pb.JobType_JOB_A_COMPETITION)
 
-	groups := make(map[string][]*pb.CompetitionMetrics, len(s.shuffleBuffer))
-
-	for key, records := range s.shuffleBuffer {
-		groups[key] = append(
-			[]*pb.CompetitionMetrics(nil),
-			records...,
-		)
+	groups := make(map[string][]*pb.CompetitionMetrics, len(entryGroups))
+	for key, entries := range entryGroups {
+		for _, e := range entries {
+			if e.Competition != nil {
+				groups[key] = append(groups[key], e.Competition)
+			}
+		}
 	}
-
-	s.shuffleMu.Unlock()
 
 	results := competition.Reduce(groups)
 
@@ -217,6 +268,72 @@ func (s *workerServer) executeCompetitionReduce(
 	}, nil
 }
 
+func (s *workerServer) executePriceReduce(
+	task *pb.TaskAssignment,
+) (*pb.TaskResult, error) {
+
+	entryGroups := s.groupsForJob(pb.JobType_JOB_B1_PRICE)
+
+	groups := make(map[string][]*pb.ContractPriceMetrics, len(entryGroups))
+	for key, entries := range entryGroups {
+		for _, e := range entries {
+			if e.Price != nil {
+				groups[key] = append(groups[key], e.Price)
+			}
+		}
+	}
+
+	results := price.Reduce(groups)
+
+	log.Printf(
+		"[%s] REDUCE %s: %d categorías agrupadas → %d resultados",
+		s.workerID,
+		task.TaskId,
+		len(groups),
+		len(results),
+	)
+
+	return &pb.TaskResult{
+		TaskId:       task.TaskId,
+		WorkerId:     s.workerID,
+		Status:       pb.TaskStatus_TASK_COMPLETED,
+		PriceResults: results,
+	}, nil
+}
+
+func (s *workerServer) executeConcentrationReduce(
+	task *pb.TaskAssignment,
+) (*pb.TaskResult, error) {
+
+	entryGroups := s.groupsForJob(pb.JobType_JOB_B2_CONCENTRATION)
+
+	groups := make(map[string][]*pb.ProviderConcentration, len(entryGroups))
+	for key, entries := range entryGroups {
+		for _, e := range entries {
+			if e.Concentration != nil {
+				groups[key] = append(groups[key], e.Concentration)
+			}
+		}
+	}
+
+	results := concentration.Reduce(groups)
+
+	log.Printf(
+		"[%s] REDUCE %s: %d proveedores agrupados → %d resultados",
+		s.workerID,
+		task.TaskId,
+		len(groups),
+		len(results),
+	)
+
+	return &pb.TaskResult{
+		TaskId:               task.TaskId,
+		WorkerId:             s.workerID,
+		Status:               pb.TaskStatus_TASK_COMPLETED,
+		ConcentrationResults: results,
+	}, nil
+}
+
 func (s *workerServer) executeCompetitionMap(
 	task *pb.TaskAssignment,
 ) (*pb.TaskResult, error) {
@@ -231,6 +348,43 @@ func (s *workerServer) executeCompetitionMap(
 		s.workerID,
 		task.TaskId,
 		len(task.ProcessRecords),
+		len(entries),
+	)
+
+	if err := s.sendShuffle(context.Background(), entries); err != nil {
+		return nil, fmt.Errorf(
+			"shuffle de tarea %s: %w",
+			task.TaskId,
+			err,
+		)
+	}
+
+	return &pb.TaskResult{
+		TaskId:   task.TaskId,
+		WorkerId: s.workerID,
+		Status:   pb.TaskStatus_TASK_COMPLETED,
+	}, nil
+}
+
+// executeContractMap corre el MAP de un job basado en Contratos Electrónicos
+// (B1 precio o B2 concentración, que comparten la misma firma de Map) y
+// despacha las entradas resultantes por shuffle.
+func (s *workerServer) executeContractMap(
+	task *pb.TaskAssignment,
+	mapFn func([]*pb.ContractDataChunk) ([]*pb.ShuffleEntry, error),
+) (*pb.TaskResult, error) {
+
+	entries, err := mapFn(task.ContractRecords)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf(
+		"[%s] MAP %s (%s): %d registros → %d entradas de shuffle",
+		s.workerID,
+		task.TaskId,
+		task.JobType,
+		len(task.ContractRecords),
 		len(entries),
 	)
 
@@ -453,28 +607,29 @@ func (s *workerServer) ReceiveShuffleData(
 	defer s.shuffleMu.Unlock()
 
 	for _, entry := range req.Entries {
-		if entry == nil {
+		if entry == nil || entry.Key == "" {
 			continue
 		}
 
-		if entry.JobType != pb.JobType_JOB_A_COMPETITION {
+		switch entry.JobType {
+		case pb.JobType_JOB_A_COMPETITION:
+			if entry.Competition == nil {
+				continue
+			}
+		case pb.JobType_JOB_B1_PRICE:
+			if entry.Price == nil {
+				continue
+			}
+		case pb.JobType_JOB_B2_CONCENTRATION:
+			if entry.Concentration == nil {
+				continue
+			}
+		default:
 			continue
 		}
 
-		if entry.Competition == nil {
-			continue
-		}
-
-		key := entry.Key
-
-		if key == "" {
-			continue
-		}
-
-		s.shuffleBuffer[key] = append(
-			s.shuffleBuffer[key],
-			entry.Competition,
-		)
+		bufKey := shuffleBufferKey(entry.JobType, entry.Key)
+		s.shuffleBuffer[bufKey] = append(s.shuffleBuffer[bufKey], entry)
 
 		received++
 	}
@@ -529,7 +684,7 @@ func main() {
 	srv := &workerServer{
 		workerID:      workerID,
 		masterAddress: masterAddr,
-		shuffleBuffer: make(map[string][]*pb.CompetitionMetrics),
+		shuffleBuffer: make(map[string][]*pb.ShuffleEntry),
 		workers:       workerAddresses,
 	}
 
