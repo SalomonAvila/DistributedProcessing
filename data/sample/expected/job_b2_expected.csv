@@ -1,0 +1,11 @@
+documento_proveedor,nit_entidad,contratos_con_entidad,contratos_totales_proveedor,concentracion_proveedor
+PROV-9001,NIT-1001,3,4,0.75
+PROV-9001,NIT-1002,1,4,0.25
+PROV-9002,NIT-1001,1,1,1.0
+PROV-9003,NIT-1002,1,4,0.25
+PROV-9003,NIT-1003,1,4,0.25
+PROV-9003,NIT-1004,1,4,0.25
+PROV-9003,NIT-1005,1,4,0.25
+PROV-9004,NIT-1003,1,1,1.0
+PROV-9005,NIT-1004,1,1,1.0
+PROV-9006,NIT-1005,1,1,1.0

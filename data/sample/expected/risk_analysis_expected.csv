@@ -1,0 +1,16 @@
+id_del_proceso,nit_entidad,nombre_entidad,tiene_contrato,documento_proveedor,nombre_proveedor,valor_contrato,indice_competencia,desviacion_precio,concentracion,puntuacion_riesgo,flag_riesgo_alto
+PROC-2026-009,NIT-1002,NIT-1002,False,,,0,0.0,0.0,0.0,1.0,True
+PROC-2026-015,NIT-1001,NIT-1001,False,,,0,0.0,0.0,0.0,1.0,True
+PROC-2026-003,NIT-1001,NIT-1001,True,PROV-9002,Soluciones Tech SAS,85000000,0.2,1.8333,1.0,0.9333,True
+PROC-2026-002,NIT-1001,NIT-1001,True,PROV-9001,Constructora Andina SAS,450000000,0.1,1.25,0.75,0.8833,True
+PROC-2026-010,NIT-1003,NIT-1003,False,,,0,0.3,0.0,0.0,0.7,True
+PROC-2026-011,NIT-1004,NIT-1004,True,PROV-9005,Logistica y Servicios SAS,50000000,0.0,0.0,1.0,0.6667,True
+PROC-2026-007,NIT-1003,NIT-1003,True,PROV-9004,Consultores Asociados SAS,15000000,0.25,0.0,1.0,0.5833,True
+PROC-2026-014,NIT-1005,NIT-1005,True,PROV-9006,Infraestructura Vial SAS,300000000,1.0,0.5,1.0,0.5,True
+PROC-2026-001,NIT-1001,NIT-1001,True,PROV-9001,Constructora Andina SAS,120000000,0.8,-0.4,0.75,0.45,False
+PROC-2026-013,NIT-1005,NIT-1005,True,PROV-9003,Suministros Globales Ltda,32000000,0.2,0.0667,0.25,0.3722,False
+PROC-2026-008,NIT-1001,NIT-1001,True,PROV-9001,Constructora Andina SAS,180000000,0.8,-0.1,0.75,0.35,False
+PROC-2026-005,NIT-1002,NIT-1002,True,PROV-9001,Constructora Andina SAS,200000000,0.25,0.0,0.25,0.3333,False
+PROC-2026-006,NIT-1003,NIT-1003,True,PROV-9003,Suministros Globales Ltda,30000000,0.5,0.0,0.25,0.25,False
+PROC-2026-004,NIT-1002,NIT-1002,True,PROV-9003,Suministros Globales Ltda,25000000,0.75,-0.1667,0.25,0.2222,False
+PROC-2026-012,NIT-1004,NIT-1004,True,PROV-9003,Suministros Globales Ltda,28000000,1.0,-0.0667,0.25,0.1056,False

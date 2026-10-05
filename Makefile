@@ -30,6 +30,13 @@ build: proto
 test: proto
 	cd src && go test -v ./...
 
+# Generar datasets esperados con el oraculo secuencial (HU-3.1)
+oracle:
+	python3 scripts/reference_oracle.py \
+		--procesos data/sample/procesos_sample.csv \
+		--contratos data/sample/contratos_sample.csv \
+		--output-dir data/sample/expected
+
 # Limpiar binarios generados
 clean:
 	rm -rf bin/

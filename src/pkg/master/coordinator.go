@@ -335,7 +335,22 @@ func (c *Coordinator) assignTaskAsync(ctx context.Context, worker *WorkerNode, t
 	log.Printf("[Master] Despachando tarea %s (chunk %s, job %s) -> worker %s (%s)",
 		task.ID, task.Assignment.ChunkId, task.Assignment.JobType, worker.ID, worker.Address)
 
-	resp, err := worker.Client.AssignTask(callCtx, task.Assignment)
+	assignment := task.Assignment
+	if task.Load != nil {
+		loaded, err := task.Load()
+		if err != nil {
+			// Error leyendo el chunk del disco del master: no es culpa del
+			// worker, así que se libera y la tarea queda FAILED.
+			log.Printf("[Master] Error cargando registros de la tarea %s: %v", task.ID, err)
+			_ = c.TM.MarkFailed(task.ID, err.Error())
+			c.WP.SetStatus(worker.ID, WorkerStatusIdle, "")
+			go c.DispatchPendingTasks(context.Background())
+			return
+		}
+		assignment = loaded
+	}
+
+	resp, err := worker.Client.AssignTask(callCtx, assignment)
 	if err != nil || !resp.Accepted {
 		log.Printf("[Master] Error o rechazo al asignar tarea %s a worker %s: err=%v, resp=%v",
 			task.ID, worker.ID, err, resp)

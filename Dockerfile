@@ -43,12 +43,6 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/master ./cmd/master
 
 FROM scratch AS master
 COPY --from=build-master /out/master /master
-# Datasets sintéticos (mismo esquema de columnas que los CSV reales de
-# SECOP II, ver data/README.md) para poder correr el pipeline completo
-# (3 jobs + join) sin depender todavía de los datasets reales de 20-40GB.
-# Regenerar con: go run ./cmd/gendata -out ../data/synthetic (desde src/).
-COPY data/raw/prueba.csv /data/procesos-de-contratacion.csv
-COPY data/raw/prueba.csv /data/contratos-electronicos.csv
 EXPOSE 50051
 CMD ["/master"]
 

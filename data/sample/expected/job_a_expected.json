@@ -1,0 +1,137 @@
+[
+  {
+    "id_del_proceso": "PROC-2026-001",
+    "nit_entidad": "NIT-1001",
+    "proveedores_invitados": 10,
+    "proveedores_responden": 8,
+    "indice_competencia": 0.8,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-002",
+    "nit_entidad": "NIT-1001",
+    "proveedores_invitados": 10,
+    "proveedores_responden": 1,
+    "indice_competencia": 0.1,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-003",
+    "nit_entidad": "NIT-1001",
+    "proveedores_invitados": 5,
+    "proveedores_responden": 1,
+    "indice_competencia": 0.2,
+    "modalidad_de_contratacion": "Seleccion Abreviada",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-004",
+    "nit_entidad": "NIT-1002",
+    "proveedores_invitados": 20,
+    "proveedores_responden": 15,
+    "indice_competencia": 0.75,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-005",
+    "nit_entidad": "NIT-1002",
+    "proveedores_invitados": 8,
+    "proveedores_responden": 2,
+    "indice_competencia": 0.25,
+    "modalidad_de_contratacion": "Seleccion Abreviada",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-006",
+    "nit_entidad": "NIT-1003",
+    "proveedores_invitados": 12,
+    "proveedores_responden": 6,
+    "indice_competencia": 0.5,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-007",
+    "nit_entidad": "NIT-1003",
+    "proveedores_invitados": 4,
+    "proveedores_responden": 1,
+    "indice_competencia": 0.25,
+    "modalidad_de_contratacion": "Minima Cuantia",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-008",
+    "nit_entidad": "NIT-1001",
+    "proveedores_invitados": 15,
+    "proveedores_responden": 12,
+    "indice_competencia": 0.8,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-009",
+    "nit_entidad": "NIT-1002",
+    "proveedores_invitados": 6,
+    "proveedores_responden": 0,
+    "indice_competencia": 0.0,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Desierto"
+  },
+  {
+    "id_del_proceso": "PROC-2026-010",
+    "nit_entidad": "NIT-1003",
+    "proveedores_invitados": 10,
+    "proveedores_responden": 3,
+    "indice_competencia": 0.3,
+    "modalidad_de_contratacion": "Concurso de Meritos",
+    "estado_del_procedimiento": "En proceso"
+  },
+  {
+    "id_del_proceso": "PROC-2026-011",
+    "nit_entidad": "NIT-1004",
+    "proveedores_invitados": 0,
+    "proveedores_responden": 1,
+    "indice_competencia": 0.0,
+    "modalidad_de_contratacion": "Contratacion Directa",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-012",
+    "nit_entidad": "NIT-1004",
+    "proveedores_invitados": 5,
+    "proveedores_responden": 5,
+    "indice_competencia": 1.0,
+    "modalidad_de_contratacion": "Seleccion Abreviada",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-013",
+    "nit_entidad": "NIT-1005",
+    "proveedores_invitados": 10,
+    "proveedores_responden": 2,
+    "indice_competencia": 0.2,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-014",
+    "nit_entidad": "NIT-1005",
+    "proveedores_invitados": 8,
+    "proveedores_responden": 8,
+    "indice_competencia": 1.0,
+    "modalidad_de_contratacion": "Licitacion Publica",
+    "estado_del_procedimiento": "Adjudicado"
+  },
+  {
+    "id_del_proceso": "PROC-2026-015",
+    "nit_entidad": "NIT-1001",
+    "proveedores_invitados": 4,
+    "proveedores_responden": 0,
+    "indice_competencia": 0.0,
+    "modalidad_de_contratacion": "Minima Cuantia",
+    "estado_del_procedimiento": "Desierto"
+  }
+]
