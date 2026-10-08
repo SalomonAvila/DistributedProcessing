@@ -28,7 +28,7 @@ metadata:
     app: worker
 spec:
   serviceName: worker
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: worker
@@ -47,7 +47,6 @@ spec:
                     values:
                       - worker2
                       - worker3
-                      - worker4
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
@@ -82,7 +81,7 @@ spec:
             # usaba el default hardcodeado del binario (worker-1/2/3, que
             # no coincide con los pods reales worker-0/1/2).
             - name: WORKERS
-              value: "worker-0.worker:50051,worker-1.worker:50051,worker-2.worker:50051"
+              value: "worker-0.worker:50051,worker-1.worker:50051"
             - name: TASK_DURATION_MS
               value: "100"
             # Más frecuente que el default del binario (2s), para dar

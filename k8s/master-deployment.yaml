@@ -43,7 +43,7 @@ spec:
             # DNS estable de cada pod del StatefulSet "worker" (ver
             # worker-statefulset.yaml): <pod>.<service-headless>.
             - name: WORKERS
-              value: "worker-0.worker:50051,worker-1.worker:50051,worker-2.worker:50051"
+              value: "worker-0.worker:50051,worker-1.worker:50051"
             # Subido de 5s a 12s: en el cluster real (red overlay entre
             # nodos físicos) el worker abre una conexión gRPC nueva en
             # cada heartbeat, y 5s alcanzaba para declarar DEAD a un
