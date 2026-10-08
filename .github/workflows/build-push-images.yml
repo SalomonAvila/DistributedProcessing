@@ -38,8 +38,11 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # GHCR_TOKEN (PAT con write:packages) si está configurado: los
+          # paquetes se crearon con un push manual y el GITHUB_TOKEN no
+          # tiene permiso de escritura sobre ellos (permission_denied).
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Build and push ${{ matrix.target }}
         uses: docker/build-push-action@v6
