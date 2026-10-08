@@ -1,0 +1,53 @@
+name: Build and Push Images
+
+# Construye y publica en GHCR las imágenes de master y worker (mismos
+# targets que k8s/build-and-push.sh, que hace lo mismo a mano). Usa el
+# GITHUB_TOKEN automático del workflow (permiso packages: write) en vez de
+# un GHCR_TOKEN manual, así no hace falta ningún secret extra.
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "src/**"
+      - "Dockerfile"
+      - "data/synthetic/**"
+      - ".github/workflows/build-push-images.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-push-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [master, worker]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          target: ${{ matrix.target }}
+          push: true
+          tags: |
+            ghcr.io/salomonavila/distributedprocessing-${{ matrix.target }}:latest
+            ghcr.io/salomonavila/distributedprocessing-${{ matrix.target }}:${{ github.sha }}

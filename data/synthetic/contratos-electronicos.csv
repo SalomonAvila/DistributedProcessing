@@ -1,0 +1,41 @@
+proceso_de_compra,nit_entidad,nombre_entidad,documento_proveedor,proveedor_adjudicado,valor_del_contrato,codigo_de_categoria_principal,fecha_de_firma
+PROC-0001,800234567,Gobernación de Antioquia,P-1001,Constructora ABC SAS,13250990,V1.208,2025-01-01
+PROC-0002,901345678,Ministerio de Salud,P-1002,Suministros XYZ Ltda,6108951,F1.101,2025-02-02
+PROC-0003,890456789,Alcaldía de Medellín,P-1003,Tecnología Andina SA,46092676,C1.305,2025-03-03
+PROC-0004,900123456,Alcaldía de Bogotá,P-1004,Ingeniería del Norte SAS,23759755,S1.410,2025-04-04
+PROC-0005,800234567,Gobernación de Antioquia,P-1005,Logística Central Ltda,11312657,V1.208,2025-05-05
+PROC-0006,901345678,Ministerio de Salud,P-1006,Consultores Unidos SAS,7965649,F1.101,2025-06-06
+PROC-0007,890456789,Alcaldía de Medellín,P-1001,Constructora ABC SAS,36239903,C1.305,2025-07-07
+PROC-0008,900123456,Alcaldía de Bogotá,P-1002,Suministros XYZ Ltda,26144455,S1.410,2025-08-08
+PROC-0009,800234567,Gobernación de Antioquia,P-1003,Tecnología Andina SA,13918636,V1.208,2025-09-09
+PROC-0010,901345678,Ministerio de Salud,P-1004,Ingeniería del Norte SAS,7163287,F1.101,2025-10-10
+PROC-0011,890456789,Alcaldía de Medellín,P-1005,Logística Central Ltda,33394983,C1.305,2025-11-11
+PROC-0012,900123456,Alcaldía de Bogotá,P-1006,Consultores Unidos SAS,25317906,S1.410,2025-12-12
+PROC-0013,800234567,Gobernación de Antioquia,P-1001,Constructora ABC SAS,18318102,V1.208,2025-01-13
+PROC-0014,901345678,Ministerio de Salud,P-1002,Suministros XYZ Ltda,9887830,F1.101,2025-02-14
+PROC-0015,890456789,Alcaldía de Medellín,P-1003,Tecnología Andina SA,49632835,C1.305,2025-03-15
+PROC-0016,900123456,Alcaldía de Bogotá,P-1004,Ingeniería del Norte SAS,18803978,S1.410,2025-04-16
+PROC-0017,800234567,Gobernación de Antioquia,P-1005,Logística Central Ltda,16979954,V1.208,2025-05-17
+PROC-0018,901345678,Ministerio de Salud,P-1006,Consultores Unidos SAS,9930417,F1.101,2025-06-18
+PROC-0019,890456789,Alcaldía de Medellín,P-1001,Constructora ABC SAS,36193433,C1.305,2025-07-19
+PROC-0020,900123456,Alcaldía de Bogotá,P-1002,Suministros XYZ Ltda,27135782,S1.410,2025-08-20
+PROC-0021,800234567,Gobernación de Antioquia,P-1003,Tecnología Andina SA,14772700,V1.208,2025-09-21
+PROC-0022,901345678,Ministerio de Salud,P-1004,Ingeniería del Norte SAS,9203352,F1.101,2025-10-22
+PROC-0023,890456789,Alcaldía de Medellín,P-1005,Logística Central Ltda,48207868,C1.305,2025-11-23
+PROC-0024,900123456,Alcaldía de Bogotá,P-1006,Consultores Unidos SAS,21725757,S1.410,2025-12-24
+PROC-0025,800234567,Gobernación de Antioquia,P-1001,Constructora ABC SAS,13003773,V1.208,2025-01-25
+PROC-0001,800234567,Gobernación de Antioquia,P-1002,Suministros XYZ Ltda,7308550,F1.101,2025-02-26
+PROC-0002,901345678,Ministerio de Salud,P-1003,Tecnología Andina SA,30509966,C1.305,2025-03-27
+PROC-0003,890456789,Alcaldía de Medellín,P-1004,Ingeniería del Norte SAS,19618525,S1.410,2025-04-28
+PROC-0004,900123456,Alcaldía de Bogotá,P-1005,Logística Central Ltda,16863555,V1.208,2025-05-01
+PROC-0005,800234567,Gobernación de Antioquia,P-1006,Consultores Unidos SAS,7190571,F1.101,2025-06-02
+PROC-0006,901345678,Ministerio de Salud,P-1001,Constructora ABC SAS,49334249,C1.305,2025-07-03
+PROC-0007,890456789,Alcaldía de Medellín,P-1002,Suministros XYZ Ltda,26574545,S1.410,2025-08-04
+PROC-0008,900123456,Alcaldía de Bogotá,P-1003,Tecnología Andina SA,14354373,V1.208,2025-09-05
+PROC-0009,800234567,Gobernación de Antioquia,P-1004,Ingeniería del Norte SAS,9627932,F1.101,2025-10-06
+PROC-0010,901345678,Ministerio de Salud,P-1005,Logística Central Ltda,44686808,C1.305,2025-11-07
+PROC-0011,890456789,Alcaldía de Medellín,P-1006,Consultores Unidos SAS,18323277,S1.410,2025-12-08
+PROC-0012,900123456,Alcaldía de Bogotá,P-1001,Constructora ABC SAS,11350663,V1.208,2025-01-09
+PROC-0013,800234567,Gobernación de Antioquia,P-1002,Suministros XYZ Ltda,9702169,F1.101,2025-02-10
+PROC-0014,901345678,Ministerio de Salud,P-1003,Tecnología Andina SA,31984302,C1.305,2025-03-11
+PROC-0015,890456789,Alcaldía de Medellín,P-1004,Ingeniería del Norte SAS,22293137,S1.410,2025-04-12

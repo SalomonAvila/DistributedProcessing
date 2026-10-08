@@ -90,6 +90,30 @@ func ChunkContractRecords(records []*pb.ContractDataChunk, chunkSize int) []*Con
 	return chunks
 }
 
+// normalizeHeader normaliza un nombre de columna de CSV a snake_case para
+// poder matchear tanto el export directo del portal de datos.gov.co (Title
+// Case con espacios, ej. "ID del Proceso", "Valor del Contrato") como los
+// nombres ya en snake_case que devuelve la API Socrata.
+func normalizeHeader(col string) string {
+	col = strings.TrimSpace(strings.ToLower(col))
+	col = strings.ReplaceAll(col, " ", "_")
+	return col
+}
+
+// digitsOnly descarta todo lo que no sea dígito. El export directo del
+// portal trae los montos formateados como "$4.500.000" (símbolo de moneda +
+// "." como separador de miles); strconv.ParseUint no acepta eso, así que se
+// limpia antes de parsear en vez de fallar en silencio.
+func digitsOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 // ProcessCSVReader lee un flujo CSV de Procesos de Contratación y emite ProcessChunk por demanda.
 // Permite procesar datasets masivos (GBs) en streaming sin cargarlos completos en memoria.
 type ProcessCSVReader struct {
@@ -113,7 +137,7 @@ func NewProcessCSVReader(r io.Reader, chunkSize int) (*ProcessCSVReader, error) 
 
 	headerMap := make(map[string]int)
 	for idx, col := range header {
-		headerMap[strings.TrimSpace(strings.ToLower(col))] = idx
+		headerMap[normalizeHeader(col)] = idx
 	}
 
 	return &ProcessCSVReader{
@@ -155,15 +179,17 @@ func (p *ProcessCSVReader) NextChunk() (*ProcessChunk, error) {
 }
 
 func parseProcessRow(row []string, hMap map[string]int) *pb.ProcessDataChunk {
-	get := func(key string) string {
-		if idx, ok := hMap[key]; ok && idx < len(row) {
-			return strings.TrimSpace(row[idx])
+	get := func(keys ...string) string {
+		for _, key := range keys {
+			if idx, ok := hMap[key]; ok && idx < len(row) {
+				return strings.TrimSpace(row[idx])
+			}
 		}
 		return ""
 	}
 
-	parseUint32 := func(key string) uint32 {
-		val := get(key)
+	parseUint32 := func(keys ...string) uint32 {
+		val := get(keys...)
 		if val == "" {
 			return 0
 		}
@@ -173,16 +199,21 @@ func parseProcessRow(row []string, hMap map[string]int) *pb.ProcessDataChunk {
 
 	// NombreEntidad: en este dataset la columna real se llama "entidad",
 	// no "nombre_entidad" (así se llama en Contratos Electrónicos).
-	// ProveedoresUnicosConRespuestas: el fieldName real de Socrata viene
-	// truncado a "proveedores_unicos_con".
+	// ProveedoresUnicosConRespuestas: en el export directo del portal la
+	// columna viene completa ("Proveedores Unicos con Respuestas"), pero
+	// el fieldName de la API Socrata viene truncado a
+	// "proveedores_unicos_con" — se prueban ambas variantes.
 	return &pb.ProcessDataChunk{
-		IdDelProceso:                   get("id_del_proceso"),
-		NitEntidad:                     get("nit_entidad"),
-		NombreEntidad:                  get("entidad"),
-		ProveedoresInvitados:           parseUint32("proveedores_invitados"),
-		ProveedoresUnicosConRespuestas: parseUint32("proveedores_unicos_con"),
-		ModalidadDeContratacion:        get("modalidad_de_contratacion"),
-		EstadoDelProcedimiento:         get("estado_del_procedimiento"),
+		IdDelProceso:         get("id_del_proceso"),
+		NitEntidad:           get("nit_entidad"),
+		NombreEntidad:        get("entidad"),
+		ProveedoresInvitados: parseUint32("proveedores_invitados"),
+		ProveedoresUnicosConRespuestas: parseUint32(
+			"proveedores_unicos_con_respuestas",
+			"proveedores_unicos_con",
+		),
+		ModalidadDeContratacion: get("modalidad_de_contratacion"),
+		EstadoDelProcedimiento:  get("estado_del_procedimiento"),
 	}
 }
 
@@ -207,7 +238,7 @@ func NewContractCSVReader(r io.Reader, chunkSize int) (*ContractCSVReader, error
 
 	headerMap := make(map[string]int)
 	for idx, col := range header {
-		headerMap[strings.TrimSpace(strings.ToLower(col))] = idx
+		headerMap[normalizeHeader(col)] = idx
 	}
 
 	return &ContractCSVReader{
@@ -248,15 +279,17 @@ func (c *ContractCSVReader) NextChunk() (*ContractChunk, error) {
 }
 
 func parseContractRow(row []string, hMap map[string]int) *pb.ContractDataChunk {
-	get := func(key string) string {
-		if idx, ok := hMap[key]; ok && idx < len(row) {
-			return strings.TrimSpace(row[idx])
+	get := func(keys ...string) string {
+		for _, key := range keys {
+			if idx, ok := hMap[key]; ok && idx < len(row) {
+				return strings.TrimSpace(row[idx])
+			}
 		}
 		return ""
 	}
 
-	parseUint64 := func(key string) uint64 {
-		val := get(key)
+	parseUint64 := func(keys ...string) uint64 {
+		val := get(keys...)
 		if val == "" {
 			return 0
 		}

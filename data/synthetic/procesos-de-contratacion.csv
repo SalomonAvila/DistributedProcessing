@@ -1,0 +1,31 @@
+id_del_proceso,nit_entidad,entidad,proveedores_invitados,proveedores_unicos_con,modalidad_de_contratacion,estado_del_procedimiento
+PROC-0001,800234567,Gobernación de Antioquia,4,2,Contratación Directa,Celebrado
+PROC-0002,901345678,Ministerio de Salud,7,6,Selección Abreviada,Liquidado
+PROC-0003,890456789,Alcaldía de Medellín,10,2,Mínima Cuantía,En Ejecución
+PROC-0004,900123456,Alcaldía de Bogotá,8,8,Licitación Pública,Adjudicado
+PROC-0005,800234567,Gobernación de Antioquia,3,3,Contratación Directa,Celebrado
+PROC-0006,901345678,Ministerio de Salud,4,2,Selección Abreviada,Liquidado
+PROC-0007,890456789,Alcaldía de Medellín,10,6,Mínima Cuantía,En Ejecución
+PROC-0008,900123456,Alcaldía de Bogotá,7,5,Licitación Pública,Adjudicado
+PROC-0009,800234567,Gobernación de Antioquia,7,1,Contratación Directa,Celebrado
+PROC-0010,901345678,Ministerio de Salud,10,5,Selección Abreviada,Liquidado
+PROC-0011,890456789,Alcaldía de Medellín,5,0,Mínima Cuantía,En Ejecución
+PROC-0012,900123456,Alcaldía de Bogotá,7,3,Licitación Pública,Adjudicado
+PROC-0013,800234567,Gobernación de Antioquia,3,1,Contratación Directa,Celebrado
+PROC-0014,901345678,Ministerio de Salud,5,1,Selección Abreviada,Liquidado
+PROC-0015,890456789,Alcaldía de Medellín,6,6,Mínima Cuantía,En Ejecución
+PROC-0016,900123456,Alcaldía de Bogotá,9,2,Licitación Pública,Adjudicado
+PROC-0017,800234567,Gobernación de Antioquia,6,3,Contratación Directa,Celebrado
+PROC-0018,901345678,Ministerio de Salud,8,4,Selección Abreviada,Liquidado
+PROC-0019,890456789,Alcaldía de Medellín,9,7,Mínima Cuantía,En Ejecución
+PROC-0020,900123456,Alcaldía de Bogotá,7,3,Licitación Pública,Adjudicado
+PROC-0021,800234567,Gobernación de Antioquia,6,5,Contratación Directa,Celebrado
+PROC-0022,901345678,Ministerio de Salud,3,0,Selección Abreviada,Liquidado
+PROC-0023,890456789,Alcaldía de Medellín,3,0,Mínima Cuantía,En Ejecución
+PROC-0024,900123456,Alcaldía de Bogotá,5,0,Licitación Pública,Adjudicado
+PROC-0025,800234567,Gobernación de Antioquia,8,6,Contratación Directa,Celebrado
+PROC-0026,901345678,Ministerio de Salud,5,4,Selección Abreviada,Liquidado
+PROC-0027,890456789,Alcaldía de Medellín,8,3,Mínima Cuantía,En Ejecución
+PROC-0028,900123456,Alcaldía de Bogotá,3,0,Licitación Pública,Adjudicado
+PROC-0029,800234567,Gobernación de Antioquia,5,3,Contratación Directa,Celebrado
+PROC-0030,901345678,Ministerio de Salud,5,5,Selección Abreviada,Liquidado
