@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	pb "github.com/SalomonAvila/DistributedProcessing/proto"
 )
@@ -118,7 +117,7 @@ func readChunkRows(path string, ref ChunkRef, fn func(row []string, hMap map[str
 	}
 	hMap := make(map[string]int, len(header))
 	for idx, col := range header {
-		hMap[strings.TrimSpace(strings.ToLower(col))] = idx
+		hMap[normalizeHeader(col)] = idx
 	}
 
 	if _, err := f.Seek(ref.Offset, io.SeekStart); err != nil {

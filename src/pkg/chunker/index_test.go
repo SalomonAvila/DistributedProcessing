@@ -64,3 +64,28 @@ func TestIndexAndReadChunks(t *testing.T) {
 		t.Errorf("campo multilínea mal leído: %q", second[1].NombreEntidad)
 	}
 }
+
+// El export directo del portal trae cabeceras con espacios y mayúsculas
+// ("ID del Proceso"); ReadProcessChunk debe normalizarlas igual que
+// NewProcessCSVReader para que los campos no queden vacíos.
+func TestReadChunkWithPortalHeaders(t *testing.T) {
+	csvData := "Entidad,ID del Proceso,Nit Entidad,Proveedores Invitados\n" +
+		"ENTIDAD UNO,CO1.P1,900123456,10\n"
+
+	path := filepath.Join(t.TempDir(), "procesos.csv")
+	if err := os.WriteFile(path, []byte(csvData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	refs, err := IndexCSV(path, 10, "proc_chunk")
+	if err != nil {
+		t.Fatalf("error indexando: %v", err)
+	}
+	records, err := ReadProcessChunk(path, refs[0])
+	if err != nil {
+		t.Fatalf("error leyendo chunk: %v", err)
+	}
+	if len(records) != 1 || records[0].IdDelProceso != "CO1.P1" || records[0].NitEntidad != "900123456" {
+		t.Errorf("registro mal parseado: %+v", records)
+	}
+}
