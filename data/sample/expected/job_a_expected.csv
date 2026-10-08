@@ -1,0 +1,16 @@
+id_del_proceso,nit_entidad,proveedores_invitados,proveedores_responden,indice_competencia,modalidad_de_contratacion,estado_del_procedimiento
+PROC-2026-001,NIT-1001,10,8,0.8,Licitacion Publica,Adjudicado
+PROC-2026-002,NIT-1001,10,1,0.1,Licitacion Publica,Adjudicado
+PROC-2026-003,NIT-1001,5,1,0.2,Seleccion Abreviada,Adjudicado
+PROC-2026-004,NIT-1002,20,15,0.75,Licitacion Publica,Adjudicado
+PROC-2026-005,NIT-1002,8,2,0.25,Seleccion Abreviada,Adjudicado
+PROC-2026-006,NIT-1003,12,6,0.5,Licitacion Publica,Adjudicado
+PROC-2026-007,NIT-1003,4,1,0.25,Minima Cuantia,Adjudicado
+PROC-2026-008,NIT-1001,15,12,0.8,Licitacion Publica,Adjudicado
+PROC-2026-009,NIT-1002,6,0,0.0,Licitacion Publica,Desierto
+PROC-2026-010,NIT-1003,10,3,0.3,Concurso de Meritos,En proceso
+PROC-2026-011,NIT-1004,0,1,0.0,Contratacion Directa,Adjudicado
+PROC-2026-012,NIT-1004,5,5,1.0,Seleccion Abreviada,Adjudicado
+PROC-2026-013,NIT-1005,10,2,0.2,Licitacion Publica,Adjudicado
+PROC-2026-014,NIT-1005,8,8,1.0,Licitacion Publica,Adjudicado
+PROC-2026-015,NIT-1001,4,0,0.0,Minima Cuantia,Desierto

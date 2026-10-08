@@ -50,6 +50,17 @@ spec:
             # worker con un solo heartbeat perdido (ver k8s/README.md).
             - name: HEARTBEAT_TIMEOUT_SECONDS
               value: "12"
+            # Los CSV viven solo en el master (los workers reciben cada
+            # chunk por gRPC). Se montan desde el disco del nodo worker1
+            # (ver volumen "datasets" abajo).
+            - name: DATA_PROCESOS_PATH
+              value: "/data/procesos-de-contratacion.csv"
+            - name: DATA_CONTRATOS_PATH
+              value: "/data/contratos-electronicos.csv"
+          volumeMounts:
+            - name: datasets
+              mountPath: /data
+              readOnly: true
           # No existe (todavía) un health check gRPC dedicado
           # (grpc.health.v1); tcpSocket es un chequeo mínimo de que el
           # puerto está escuchando. Reemplazar por un exec grpc_health_probe
@@ -71,6 +82,16 @@ spec:
             limits:
               cpu: "1"
               memory: "512Mi"
+      # hostPath es válido acá porque el pod está fijado a worker1 por
+      # nodeSelector: los CSV (20-40GB) se copian una sola vez a ese
+      # directorio del nodo, en vez de meterlos en la imagen o en un PV.
+      # type: Directory hace que el pod no arranque si la carpeta no
+      # existe, en lugar de crear una vacía y fallar al abrir los CSV.
+      volumes:
+        - name: datasets
+          hostPath:
+            path: /srv/distributed-processing/data
+            type: Directory
 ---
 apiVersion: v1
 kind: Service

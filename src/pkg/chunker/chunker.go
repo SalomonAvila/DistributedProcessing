@@ -197,23 +197,28 @@ func parseProcessRow(row []string, hMap map[string]int) *pb.ProcessDataChunk {
 		return uint32(n)
 	}
 
-	// NombreEntidad: en este dataset la columna real se llama "entidad",
-	// no "nombre_entidad" (así se llama en Contratos Electrónicos).
-	// ProveedoresUnicosConRespuestas: en el export directo del portal la
-	// columna viene completa ("Proveedores Unicos con Respuestas"), pero
-	// el fieldName de la API Socrata viene truncado a
-	// "proveedores_unicos_con" — se prueban ambas variantes.
+	getEntidad := func() string {
+		if val := get("entidad"); val != "" {
+			return val
+		}
+		return get("nombre_entidad")
+	}
+
+	getRespuestas := func() uint32 {
+		if get("proveedores_unicos_con") != "" {
+			return parseUint32("proveedores_unicos_con")
+		}
+		return parseUint32("proveedores_unicos_con_respuestas")
+	}
+
 	return &pb.ProcessDataChunk{
-		IdDelProceso:         get("id_del_proceso"),
-		NitEntidad:           get("nit_entidad"),
-		NombreEntidad:        get("entidad"),
-		ProveedoresInvitados: parseUint32("proveedores_invitados"),
-		ProveedoresUnicosConRespuestas: parseUint32(
-			"proveedores_unicos_con_respuestas",
-			"proveedores_unicos_con",
-		),
-		ModalidadDeContratacion: get("modalidad_de_contratacion"),
-		EstadoDelProcedimiento:  get("estado_del_procedimiento"),
+		IdDelProceso:                   get("id_del_proceso"),
+		NitEntidad:                     get("nit_entidad"),
+		NombreEntidad:                  getEntidad(),
+		ProveedoresInvitados:           parseUint32("proveedores_invitados"),
+		ProveedoresUnicosConRespuestas: getRespuestas(),
+		ModalidadDeContratacion:        get("modalidad_de_contratacion"),
+		EstadoDelProcedimiento:         get("estado_del_procedimiento"),
 	}
 }
 
@@ -297,10 +302,17 @@ func parseContractRow(row []string, hMap map[string]int) *pb.ContractDataChunk {
 		return n
 	}
 
+	getEntidad := func() string {
+		if val := get("nombre_entidad"); val != "" {
+			return val
+		}
+		return get("entidad")
+	}
+
 	return &pb.ContractDataChunk{
 		ProcesoDeCompra:            get("proceso_de_compra"),
 		NitEntidad:                 get("nit_entidad"),
-		NombreEntidad:              get("nombre_entidad"),
+		NombreEntidad:              getEntidad(),
 		DocumentoProveedor:         get("documento_proveedor"),
 		ProveedorAdjudicado:        get("proveedor_adjudicado"),
 		ValorDelContrato:           parseUint64("valor_del_contrato"),

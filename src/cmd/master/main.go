@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
@@ -101,8 +100,8 @@ func main() {
 
 	log.Println("[Master] Todos los workers registrados y listos en el WorkerPool.")
 
-	// 4. Cargar los datasets (streaming vía chunker, nunca todo en memoria)
-	// y encolar una tarea MAP por chunk: Job A sobre Procesos de
+	// 4. Indexar los datasets (el CSV queda en el disco del master; solo se
+	// guardan offsets por chunk) y encolar una tarea MAP por chunk: Job A sobre Procesos de
 	// Contratación, y Job B1 (precio) + Job B2 (concentración) sobre
 	// Contratos Electrónicos (mismo chunk, dos jobs distintos).
 	dataProcesosPath := os.Getenv("DATA_PROCESOS_PATH")
@@ -186,100 +185,90 @@ func extractWorkerID(addr string) string {
 	return host
 }
 
-// enqueueProcessTasks lee el CSV de Procesos de Contratación en streaming
-// (nunca carga el archivo entero en memoria) y encola una tarea MAP de
-// Job A por cada chunk. Retorna la cantidad de chunks encolados.
+// enqueueProcessTasks indexa el CSV de Procesos de Contratación (una sola
+// pasada, sin guardar registros) y encola una tarea MAP de Job A por cada
+// chunk. La tarea guarda solo la referencia al rango de bytes del chunk; los
+// registros se leen del disco al despacharla (Task.Load), así el master
+// nunca tiene el dataset entero en memoria. Retorna la cantidad de chunks.
 func enqueueProcessTasks(tm *master.TaskManager, path string, chunkSize int) (int, error) {
-	f, err := os.Open(path)
+	refs, err := chunker.IndexCSV(path, chunkSize, "proc_chunk")
 	if err != nil {
-		return 0, fmt.Errorf("abriendo %s: %w", path, err)
-	}
-	defer f.Close()
-
-	reader, err := chunker.NewProcessCSVReader(f, chunkSize)
-	if err != nil {
-		return 0, fmt.Errorf("leyendo cabecera de %s: %w", path, err)
+		return 0, err
 	}
 
-	count := 0
-	for {
-		chunk, err := reader.NextChunk()
-		if err == io.EOF {
-			break
+	for _, ref := range refs {
+		ref := ref
+		taskID := fmt.Sprintf("job_a_map_%s", ref.ChunkID)
+		meta := &pb.TaskAssignment{
+			TaskId:  taskID,
+			ChunkId: ref.ChunkID,
+			JobType: pb.JobType_JOB_A_COMPETITION,
+			Phase:   pb.TaskPhase_PHASE_MAP,
 		}
-		if err != nil {
-			return count, fmt.Errorf("leyendo chunk de %s: %w", path, err)
-		}
-
-		taskID := fmt.Sprintf("job_a_map_%s", chunk.ChunkID)
 		tm.Enqueue(&master.Task{
-			ID: taskID,
-			Assignment: &pb.TaskAssignment{
-				TaskId:         taskID,
-				ChunkId:        chunk.ChunkID,
-				JobType:        pb.JobType_JOB_A_COMPETITION,
-				Phase:          pb.TaskPhase_PHASE_MAP,
-				ProcessRecords: chunk.Records,
+			ID:         taskID,
+			Assignment: meta,
+			Load: func() (*pb.TaskAssignment, error) {
+				records, err := chunker.ReadProcessChunk(path, ref)
+				if err != nil {
+					return nil, err
+				}
+				return &pb.TaskAssignment{
+					TaskId:         meta.TaskId,
+					ChunkId:        meta.ChunkId,
+					JobType:        meta.JobType,
+					Phase:          meta.Phase,
+					ProcessRecords: records,
+				}, nil
 			},
 		})
-		count++
 	}
 
-	return count, nil
+	return len(refs), nil
 }
 
-// enqueueContractTasks lee el CSV de Contratos Electrónicos en streaming y
-// encola, por cada chunk, dos tareas MAP independientes: Job B1 (desviación
-// de precio) y Job B2 (concentración proveedor-entidad). Ambos jobs parten
-// del mismo dataset crudo pero agrupan por claves distintas.
+// enqueueContractTasks indexa el CSV de Contratos Electrónicos y encola, por
+// cada chunk, dos tareas MAP independientes: Job B1 (desviación de precio) y
+// Job B2 (concentración proveedor-entidad). Ambos jobs parten del mismo
+// rango de bytes del dataset crudo pero agrupan por claves distintas; cada
+// tarea lee su chunk del disco al momento de despacharse.
 func enqueueContractTasks(tm *master.TaskManager, path string, chunkSize int) (int, error) {
-	f, err := os.Open(path)
+	refs, err := chunker.IndexCSV(path, chunkSize, "contract_chunk")
 	if err != nil {
-		return 0, fmt.Errorf("abriendo %s: %w", path, err)
-	}
-	defer f.Close()
-
-	reader, err := chunker.NewContractCSVReader(f, chunkSize)
-	if err != nil {
-		return 0, fmt.Errorf("leyendo cabecera de %s: %w", path, err)
+		return 0, err
 	}
 
-	count := 0
-	for {
-		chunk, err := reader.NextChunk()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return count, fmt.Errorf("leyendo chunk de %s: %w", path, err)
-		}
-
-		priceTaskID := fmt.Sprintf("job_b1_map_%s", chunk.ChunkID)
-		tm.Enqueue(&master.Task{
-			ID: priceTaskID,
-			Assignment: &pb.TaskAssignment{
-				TaskId:          priceTaskID,
-				ChunkId:         chunk.ChunkID,
-				JobType:         pb.JobType_JOB_B1_PRICE,
-				Phase:           pb.TaskPhase_PHASE_MAP,
-				ContractRecords: chunk.Records,
-			},
-		})
-
-		concTaskID := fmt.Sprintf("job_b2_map_%s", chunk.ChunkID)
-		tm.Enqueue(&master.Task{
-			ID: concTaskID,
-			Assignment: &pb.TaskAssignment{
-				TaskId:          concTaskID,
-				ChunkId:         chunk.ChunkID,
-				JobType:         pb.JobType_JOB_B2_CONCENTRATION,
-				Phase:           pb.TaskPhase_PHASE_MAP,
-				ContractRecords: chunk.Records,
-			},
-		})
-
-		count++
+	for _, ref := range refs {
+		enqueueContractTask(tm, path, ref, "job_b1", pb.JobType_JOB_B1_PRICE)
+		enqueueContractTask(tm, path, ref, "job_b2", pb.JobType_JOB_B2_CONCENTRATION)
 	}
 
-	return count, nil
+	return len(refs), nil
+}
+
+func enqueueContractTask(tm *master.TaskManager, path string, ref chunker.ChunkRef, slug string, jobType pb.JobType) {
+	taskID := fmt.Sprintf("%s_map_%s", slug, ref.ChunkID)
+	meta := &pb.TaskAssignment{
+		TaskId:  taskID,
+		ChunkId: ref.ChunkID,
+		JobType: jobType,
+		Phase:   pb.TaskPhase_PHASE_MAP,
+	}
+	tm.Enqueue(&master.Task{
+		ID:         taskID,
+		Assignment: meta,
+		Load: func() (*pb.TaskAssignment, error) {
+			records, err := chunker.ReadContractChunk(path, ref)
+			if err != nil {
+				return nil, err
+			}
+			return &pb.TaskAssignment{
+				TaskId:          meta.TaskId,
+				ChunkId:         meta.ChunkId,
+				JobType:         meta.JobType,
+				Phase:           meta.Phase,
+				ContractRecords: records,
+			}, nil
+		},
+	})
 }

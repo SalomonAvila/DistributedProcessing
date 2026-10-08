@@ -1,0 +1,72 @@
+[
+  {
+    "documento_proveedor": "PROV-9001",
+    "nit_entidad": "NIT-1001",
+    "contratos_con_entidad": 3,
+    "contratos_totales_proveedor": 4,
+    "concentracion_proveedor": 0.75
+  },
+  {
+    "documento_proveedor": "PROV-9001",
+    "nit_entidad": "NIT-1002",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 4,
+    "concentracion_proveedor": 0.25
+  },
+  {
+    "documento_proveedor": "PROV-9002",
+    "nit_entidad": "NIT-1001",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 1,
+    "concentracion_proveedor": 1.0
+  },
+  {
+    "documento_proveedor": "PROV-9003",
+    "nit_entidad": "NIT-1002",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 4,
+    "concentracion_proveedor": 0.25
+  },
+  {
+    "documento_proveedor": "PROV-9003",
+    "nit_entidad": "NIT-1003",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 4,
+    "concentracion_proveedor": 0.25
+  },
+  {
+    "documento_proveedor": "PROV-9003",
+    "nit_entidad": "NIT-1004",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 4,
+    "concentracion_proveedor": 0.25
+  },
+  {
+    "documento_proveedor": "PROV-9003",
+    "nit_entidad": "NIT-1005",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 4,
+    "concentracion_proveedor": 0.25
+  },
+  {
+    "documento_proveedor": "PROV-9004",
+    "nit_entidad": "NIT-1003",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 1,
+    "concentracion_proveedor": 1.0
+  },
+  {
+    "documento_proveedor": "PROV-9005",
+    "nit_entidad": "NIT-1004",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 1,
+    "concentracion_proveedor": 1.0
+  },
+  {
+    "documento_proveedor": "PROV-9006",
+    "nit_entidad": "NIT-1005",
+    "contratos_con_entidad": 1,
+    "contratos_totales_proveedor": 1,
+    "concentracion_proveedor": 1.0
+  }
+]

@@ -27,7 +27,13 @@ type Task struct {
 	// ir esta tarea (usado en REDUCE: cada worker reduce su propia
 	// partición de shuffle, así que la tarea no puede ir a "cualquier"
 	// worker idle como en MAP).
-	TargetWorkerID    string
+	TargetWorkerID string
+	// Load, si no es nil, construye la asignación completa (con los
+	// registros del chunk) justo antes de mandarla al worker. Assignment
+	// queda solo con la metadata (ID, job, fase), así el master no guarda
+	// en memoria los registros de todas las tareas pendientes: los lee del
+	// CSV en disco en el momento del despacho (y de nuevo si hay failover).
+	Load              func() (*pb.TaskAssignment, error)
 	AssignedWorkerID  string
 	AssignedAt        time.Time
 	CompletedAt       time.Time

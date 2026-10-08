@@ -37,6 +37,19 @@ Después del primer push, los paquetes quedan **privados** por defecto en GHCR. 
   ```
   y descomentar el bloque `imagePullSecrets` en `k8s/master-deployment.yaml` y `k8s/worker-statefulset.yaml`.
 
+## 1.5. Copiar los datasets al nodo del master (una sola vez)
+
+Los CSV no van en la imagen: el master los lee del disco de `worker1` (volumen `hostPath` en `master-deployment.yaml`) y les manda cada chunk a los workers por gRPC. Los workers no necesitan los CSV. Este es el único paso que requiere acceso a `worker1`:
+
+```bash
+# En worker1:
+sudo mkdir -p /srv/distributed-processing/data
+# Desde donde estén los CSV:
+scp procesos-de-contratacion.csv contratos-electronicos.csv worker1:/srv/distributed-processing/data/
+```
+
+Los nombres tienen que coincidir con `DATA_PROCESOS_PATH` / `DATA_CONTRATOS_PATH` del manifiesto. Si la carpeta no existe, el pod del master queda en `ContainerCreating` con un error de montaje (`type: Directory`).
+
 ## 2. Aplicar los manifiestos (primera vez)
 
 ```bash
