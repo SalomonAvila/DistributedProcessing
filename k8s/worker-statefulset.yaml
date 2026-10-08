@@ -105,4 +105,6 @@ spec:
               memory: "256Mi"
             limits:
               cpu: "1"
-              memory: "512Mi"
+              # El shuffleBuffer guarda en memoria todas las entradas de
+              # las particiones de este worker hasta el REDUCE.
+              memory: "4Gi"

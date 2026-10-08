@@ -57,6 +57,11 @@ spec:
               value: "/data/procesos-de-contratacion.csv"
             - name: DATA_CONTRATOS_PATH
               value: "/data/contratos-electronicos.csv"
+            # Filas por tarea MAP. El default del binario (5) genera decenas
+            # de millones de tareas con el dataset real y el master muere
+            # por OOM al encolarlas.
+            - name: MAP_CHUNK_SIZE
+              value: "50000"
           volumeMounts:
             - name: datasets
               mountPath: /data
@@ -81,7 +86,7 @@ spec:
               memory: "256Mi"
             limits:
               cpu: "1"
-              memory: "512Mi"
+              memory: "2Gi"
       # hostPath es válido acá porque el pod está fijado a worker1 por
       # nodeSelector: los CSV (20-40GB) se copian una sola vez a ese
       # directorio del nodo, en vez de meterlos en la imagen o en un PV.
