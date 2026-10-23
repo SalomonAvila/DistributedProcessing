@@ -193,7 +193,7 @@ func parseProcessRow(row []string, hMap map[string]int) *pb.ProcessDataChunk {
 		if val == "" {
 			return 0
 		}
-		n, _ := strconv.ParseUint(val, 10, 32)
+		n, _ := strconv.ParseUint(digitsOnly(val), 10, 32)
 		return uint32(n)
 	}
 
@@ -298,7 +298,7 @@ func parseContractRow(row []string, hMap map[string]int) *pb.ContractDataChunk {
 		if val == "" {
 			return 0
 		}
-		n, _ := strconv.ParseUint(val, 10, 64)
+		n, _ := strconv.ParseUint(digitsOnly(val), 10, 64)
 		return n
 	}
 

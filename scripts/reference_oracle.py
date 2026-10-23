@@ -24,31 +24,49 @@ from typing import Any, Dict, List, Tuple
 def read_csv(filepath: str) -> List[Dict[str, str]]:
     with open(filepath, mode="r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        return [row for row in reader]
+        normalized = []
+        for row in reader:
+            normalized.append({
+                         k.strip().lower().replace(" ", "_"): v.strip() 
+                         for k, v in row.items() if k
+                         })
+        return normalized
+
+def clean_int(val: Any) -> int:
+         s = "".join(c for c in str(val) if c.isdigit())
+         return int(s) if s else 0
+
 
 
 def compute_job_a(procesos: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-    results = []
+    grouped: Dict[str, Dict[str, Any]] = {}
     for row in procesos:
-        invitados = int(row.get("proveedores_invitados", 0))
-        responden = int(row.get("proveedores_unicos_con_respuestas", 0))
-        if invitados > 0:
-            indice = round(float(responden) / float(invitados), 4)
+        proc_id = row["id_del_proceso"]
+        invitados = clean_int(row.get("proveedores_invitados", 0))
+        responden = clean_int(row.get("proveedores_unicos_con_respuestas", 0))
+        if proc_id not in grouped:
+            grouped[proc_id] = {
+                    "id_del_proceso": proc_id,
+                    "nit_entidad": row.get("nit_entidad", ""),
+                    "proveedores_invitados": invitados,
+                    "proveedores_responden": responden,
+                    "modalidad_de_contratacion": row.get("modalidad_de_contratacion", ""),
+                    "estado_del_procedimiento": row.get("estado_del_procedimiento", ""),
+                    }
         else:
-            indice = 0.0
+             grouped[proc_id]["proveedores_invitados"] += invitados
+             grouped[proc_id]["proveedores_responden"] += responden
 
-        results.append({
-            "id_del_proceso": row["id_del_proceso"],
-            "nit_entidad": row["nit_entidad"],
-            "proveedores_invitados": invitados,
-            "proveedores_responden": responden,
-            "indice_competencia": indice,
-            "modalidad_de_contratacion": row.get("modalidad_de_contratacion", ""),
-            "estado_del_procedimiento": row.get("estado_del_procedimiento", ""),
-        })
+    results = []
+    for proc_id, data in sorted(grouped.items()):
+        inv = data["proveedores_invitados"]
+        resp = data["proveedores_responden"]
+        data["indice_competencia"] = round(float(resp) / float(inv), 4) if inv > 0 else 0.0
+        results.append(data)
     return results
 
 
+    
 def compute_median(values: List[int]) -> int:
     sorted_vals = sorted(values)
     n = len(sorted_vals)
@@ -65,7 +83,7 @@ def compute_job_b1(contratos: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     category_values: Dict[str, List[int]] = {}
     for row in contratos:
         cat = row["codigo_de_categoria_principal"]
-        val = int(row["valor_del_contrato"])
+        val = clean_int(row["valor_del_contrato"])
         category_values.setdefault(cat, []).append(val)
 
     # Calcular mediana por categoria
@@ -76,7 +94,7 @@ def compute_job_b1(contratos: List[Dict[str, str]]) -> List[Dict[str, Any]]:
     results = []
     for row in contratos:
         cat = row["codigo_de_categoria_principal"]
-        val = int(row["valor_del_contrato"])
+        val = clean_int(row["valor_del_contrato"])
         mediana = category_medians[cat]
         if mediana > 0:
             desviacion = round(float(val - mediana) / float(mediana), 4)
