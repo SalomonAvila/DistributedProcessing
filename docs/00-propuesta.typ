@@ -20,6 +20,7 @@
 - Eliana Pardo
 - Gabriela Bonilla
 - Samuel Montaña
+- Lorenzo Ramirez Calderon
 
 == Objetivo general
 

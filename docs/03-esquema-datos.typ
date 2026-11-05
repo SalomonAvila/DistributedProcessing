@@ -30,6 +30,252 @@
 
 Este documento define los contratos y estructuras de datos para las diferentes fases del ciclo de vida de procesamiento distribuido MapReduce en dos etapas: la Etapa 1 de agregación independiente por conjunto de datos, y la Etapa 2 de join distribuido sobre los resultados consolidados.
 
+= Conjuntos de datos de origen y selección de columnas <columnas>
+
+El sistema usa dos conjuntos de datos de SECOP II publicados por Colombia Compra Eficiente en datos.gov.co. El número de columnas se verificó contra los metadatos del portal el 5 de noviembre de 2026:
+
+#table(
+  columns: (1fr, auto, auto, auto),
+  stroke: 0.5pt + gray,
+  inset: 7pt,
+  align: left,
+  table.header([*Conjunto de datos*], [*Identificador*], [*Columnas*], [*Usadas por el motor*]),
+  [SECOP II – Procesos de Contratación], [`p6dx-8zbt`], [59], [7],
+  [SECOP II – Contratos Electrónicos], [`jbjy-vk9h`], [95], [8],
+)
+
+El esquema publicado cambia con el tiempo. Por ejemplo, Contratos Electrónicos pasó de 85 a 95 columnas al incorporar diez campos ambientales y de reversión. El Chunker localiza cada columna por su nombre de encabezado y no por su posición, de modo que agregar o reordenar columnas no afecta al motor. Solo lo afecta que se renombre o elimine una de las columnas usadas.
+
+== Por qué el motor usa solo una fracción de las columnas
+
+Una columna entra al motor únicamente si un Job o el join la necesita para calcular o identificar un indicador. Hay tres razones:
+
++ *Costo de red:* el Master lee el CSV y envía cada chunk a los Workers por gRPC. Luego, el Shuffle redistribuye los pares clave–valor entre Workers. Todo byte que entra al motor viaja al menos dos veces por la red, y medir ese tráfico es uno de los objetivos del proyecto. En la muestra real del repositorio, las columnas usadas representan cerca del 11~% de los bytes de Procesos y el 9~% de los de Contratos.
++ *Memoria:* los registros intermedios se agrupan en memoria durante el Shuffle y el Reduce. Proyectar solo los campos necesarios reduce el tamaño de cada registro en el mismo orden.
++ *Alcance y privacidad:* la mayoría de las columnas no interviene en ninguno de los tres indicadores, y varias contienen datos personales que no deben circular por el sistema.
+
+La proyección ocurre en el Chunker. Al convertir cada fila en un mensaje `ProcessDataChunk` o `ContractDataChunk`, se descarta el resto de la fila.
+
+== Columnas usadas por el motor
+
+#table(
+  columns: (auto, auto, 1fr),
+  stroke: 0.5pt + gray,
+  inset: 7pt,
+  align: left,
+  table.header([*Columna en el portal*], [*Conjunto*], [*Uso*]),
+  [ID del Proceso], [Procesos], [Clave del Job A y clave del join (Etapa 2).],
+  [Nit Entidad], [Procesos], [Identifica la entidad en el resultado del Job A.],
+  [Entidad], [Procesos], [Nombre de la entidad para el reporte.],
+  [Proveedores Invitados], [Procesos], [Denominador del índice de competencia (Job A).],
+  [Proveedores Unicos con Respuestas], [Procesos], [Numerador del índice de competencia (Job A).],
+  [Modalidad de Contratacion], [Procesos], [Contexto del proceso: la competencia esperada depende de la modalidad.],
+  [Estado del Procedimiento], [Procesos], [Distingue procesos adjudicados, desiertos o en curso.],
+  [Proceso de Compra], [Contratos], [Clave del join con Procesos.],
+  [Nit Entidad], [Contratos], [Parte de la clave proveedor–entidad del Job B2.],
+  [Nombre Entidad], [Contratos], [Nombre de la entidad para el reporte.],
+  [Documento Proveedor], [Contratos], [Parte de la clave proveedor–entidad del Job B2.],
+  [Proveedor Adjudicado], [Contratos], [Nombre del proveedor para el reporte.],
+  [Valor del Contrato], [Contratos], [Valor comparado contra la mediana de la categoría (Job B1).],
+  [Codigo de Categoria Principal], [Contratos], [Categoría UNSPSC, clave de agrupación del Job B1.],
+  [Fecha de Firma], [Contratos], [Ubica el contrato en el tiempo para filtrar por periodo.],
+)
+
+== Columnas excluidas y motivo
+
+El resto de las columnas se clasifica en cuatro grupos:
+
+- *C – Candidata para la capa de consulta:* no interviene en los indicadores, pero puede ser necesaria para responder preguntas en lenguaje natural. Incluye ubicación y sector de la entidad, fechas de publicación y adjudicación, textos libres (objeto, descripción y justificación de la modalidad) y la URL del proceso. Estas columnas no pasan por el motor. Si se cargan, irán directamente de los datos procesados a PostgreSQL. Qué columnas se incluyen es una decisión abierta (ver `04-rag`, decisiones abiertas).
+- *P – Datos personales:* nombres, documentos y domicilio de representantes legales, supervisores, ordenadores del gasto y de pago, el nombre del usuario que adjudicó y los datos bancarios del contrato. Se excluyen del motor, de PostgreSQL, de los embeddings y del contexto del LLM. No aportan a los indicadores y su exposición en una interfaz abierta no está justificada.
+- *I – Identificador interno o redundante:* códigos internos de la plataforma, referencias asignadas por la entidad, identificadores de estado o tipo de documento y campos que repiten información de otra columna, como Localización frente a Departamento y Ciudad.
+- *O – Fuera del alcance de los indicadores:* fechas de cada fase del proceso, conteos de respuestas distintos del de proveedores únicos, ejecución financiera (valores facturados, pagados y amortizados, saldos), fuentes de los recursos, campos de posconflicto, documentos tipo y campos ambientales, de posconsumo y de reversión. Podrían alimentar indicadores futuros, pero no los tres definidos en este proyecto.
+
+== Anexo: clasificación de todas las columnas
+
+Clave: *M* usada por el motor; *C* candidata para la capa de consulta; *P* dato personal (excluida); *I* identificador interno o redundante; *O* fuera del alcance de los indicadores.
+
+=== SECOP II – Procesos de Contratación (59 columnas)
+
+Resumen: M = 7, C = 19, P = 1, I = 7, O = 25.
+
+#text(size: 9pt)[
+#table(
+  columns: (auto, 1fr, auto),
+  stroke: 0.4pt + gray,
+  inset: 4pt,
+  align: (right, left, center),
+  table.header([*\#*], [*Columna en el portal*], [*Uso*]),
+  [1], [Entidad], [M],
+  [2], [Nit Entidad], [M],
+  [3], [Departamento Entidad], [C],
+  [4], [Ciudad Entidad], [C],
+  [5], [OrdenEntidad], [C],
+  [6], [Entidad Centralizada], [O],
+  [7], [ID del Proceso], [M],
+  [8], [Referencia del Proceso], [I],
+  [9], [PCI], [I],
+  [10], [ID del Portafolio], [I],
+  [11], [Nombre del Procedimiento], [C],
+  [12], [Descripción del Procedimiento], [C],
+  [13], [Fase], [O],
+  [14], [Fecha de Publicacion del Proceso], [C],
+  [15], [Fecha de Ultima Publicación], [O],
+  [16], [Fecha de Publicacion (Fase Planeacion Precalificacion)], [O],
+  [17], [Fecha de Publicacion (Fase Seleccion Precalificacion)], [O],
+  [18], [Fecha de Publicacion (Manifestacion de Interes)], [O],
+  [19], [Fecha de Publicacion (Fase Borrador)], [O],
+  [20], [Fecha de Publicacion (Fase Seleccion)], [O],
+  [21], [Precio Base], [C],
+  [22], [Modalidad de Contratacion], [M],
+  [23], [Justificación Modalidad de Contratación], [C],
+  [24], [Duracion], [O],
+  [25], [Unidad de Duracion], [O],
+  [26], [Fecha de Recepcion de Respuestas], [O],
+  [27], [Fecha de Apertura de Respuesta], [O],
+  [28], [Fecha de Apertura Efectiva], [O],
+  [29], [Ciudad de la Unidad de Contratación], [O],
+  [30], [Nombre de la Unidad de Contratación], [O],
+  [31], [Proveedores Invitados], [M],
+  [32], [Proveedores con Invitacion Directa], [O],
+  [33], [Visualizaciones del Procedimiento], [O],
+  [34], [Proveedores que Manifestaron Interes], [C],
+  [35], [Respuestas al Procedimiento], [O],
+  [36], [Respuestas Externas], [O],
+  [37], [Conteo de Respuestas a Ofertas], [O],
+  [38], [Proveedores Unicos con Respuestas], [M],
+  [39], [Numero de Lotes], [O],
+  [40], [Estado del Procedimiento], [M],
+  [41], [ID Estado del Procedimiento], [I],
+  [42], [Adjudicado], [C],
+  [43], [ID Adjudicacion], [I],
+  [44], [CodigoProveedor], [I],
+  [45], [Departamento Proveedor], [C],
+  [46], [Ciudad Proveedor], [C],
+  [47], [Fecha Adjudicacion], [C],
+  [48], [Valor Total Adjudicacion], [C],
+  [49], [Nombre del Adjudicador], [P],
+  [50], [Nombre del Proveedor Adjudicado], [C],
+  [51], [NIT del Proveedor Adjudicado], [C],
+  [52], [Codigo Principal de Categoria], [C],
+  [53], [Estado de Apertura del Proceso], [O],
+  [54], [Tipo de Contrato], [C],
+  [55], [Subtipo de Contrato], [O],
+  [56], [Categorias Adicionales], [O],
+  [57], [URLProceso], [C],
+  [58], [Codigo Entidad], [I],
+  [59], [Estado Resumen], [O],
+)
+]
+
+=== SECOP II – Contratos Electrónicos (95 columnas)
+
+Resumen: M = 8, C = 17, P = 18, I = 6, O = 46.
+
+#text(size: 9pt)[
+#table(
+  columns: (auto, 1fr, auto),
+  stroke: 0.4pt + gray,
+  inset: 4pt,
+  align: (right, left, center),
+  table.header([*\#*], [*Columna en el portal*], [*Uso*]),
+  [1], [Nombre Entidad], [M],
+  [2], [Nit Entidad], [M],
+  [3], [Departamento], [C],
+  [4], [Ciudad], [C],
+  [5], [Localización], [I],
+  [6], [Orden], [C],
+  [7], [Sector], [C],
+  [8], [Rama], [C],
+  [9], [Entidad Centralizada], [O],
+  [10], [Proceso de Compra], [M],
+  [11], [ID Contrato], [C],
+  [12], [Referencia del Contrato], [I],
+  [13], [Estado Contrato], [C],
+  [14], [Codigo de Categoria Principal], [M],
+  [15], [Descripcion del Proceso], [C],
+  [16], [Tipo de Contrato], [C],
+  [17], [Modalidad de Contratacion], [C],
+  [18], [Justificacion Modalidad de Contratacion], [C],
+  [19], [Fecha de Firma], [M],
+  [20], [Fecha de Inicio del Contrato], [C],
+  [21], [Fecha de Fin del Contrato], [C],
+  [22], [Condiciones de Entrega], [O],
+  [23], [TipoDocProveedor], [I],
+  [24], [Documento Proveedor], [M],
+  [25], [Proveedor Adjudicado], [M],
+  [26], [Es Grupo], [O],
+  [27], [Es Pyme], [C],
+  [28], [Habilita Pago Adelantado], [O],
+  [29], [Liquidación], [O],
+  [30], [Obligación Ambiental], [O],
+  [31], [Obligaciones Postconsumo], [O],
+  [32], [Reversion], [O],
+  [33], [Origen de los Recursos], [O],
+  [34], [Destino Gasto], [O],
+  [35], [Valor del Contrato], [M],
+  [36], [Valor de pago adelantado], [O],
+  [37], [Valor Facturado], [O],
+  [38], [Valor Pendiente de Pago], [O],
+  [39], [Valor Pagado], [O],
+  [40], [Valor Amortizado], [O],
+  [41], [Valor Pendiente de Amortizacion], [O],
+  [42], [Valor Pendiente de Ejecucion], [O],
+  [43], [Saldo CDP], [O],
+  [44], [Saldo Vigencia], [O],
+  [45], [EsPostConflicto], [O],
+  [46], [Dias adicionados], [C],
+  [47], [Puntos del Acuerdo], [O],
+  [48], [Pilares del Acuerdo], [O],
+  [49], [URLProceso], [C],
+  [50], [Nombre Representante Legal], [P],
+  [51], [Nacionalidad Representante Legal], [P],
+  [52], [Domicilio Representante Legal], [P],
+  [53], [Tipo de Identificación Representante Legal], [P],
+  [54], [Identificación Representante Legal], [P],
+  [55], [Género Representante Legal], [P],
+  [56], [Presupuesto General de la Nacion – PGN], [O],
+  [57], [Sistema General de Participaciones], [O],
+  [58], [Sistema General de Regalías], [O],
+  [59], [Recursos Propios (Alcaldías y Gobernaciones)], [O],
+  [60], [Recursos de Credito], [O],
+  [61], [Otros Recursos (Especie, Privados, Cooperación, Propios Entidades Autónomas)], [O],
+  [62], [Ultima Actualizacion], [I],
+  [63], [Codigo Entidad], [I],
+  [64], [Codigo Proveedor], [I],
+  [65], [Fecha Inicio Liquidacion], [O],
+  [66], [Fecha Fin Liquidacion], [O],
+  [67], [Objeto del Contrato], [C],
+  [68], [Duración del contrato], [O],
+  [69], [Nombre del banco], [P],
+  [70], [Tipo de cuenta], [P],
+  [71], [Número de cuenta], [P],
+  [72], [El contrato puede ser prorrogado], [O],
+  [73], [Fecha de notificación de prorrogación], [O],
+  [74], [Nombre ordenador del gasto], [P],
+  [75], [Tipo de documento Ordenador del gasto], [P],
+  [76], [Número de documento Ordenador del gasto], [P],
+  [77], [Nombre supervisor], [P],
+  [78], [Tipo de documento supervisor], [P],
+  [79], [Número de documento supervisor], [P],
+  [80], [Nombre Ordenador de Pago], [P],
+  [81], [Tipo de documento Ordenador de Pago], [P],
+  [82], [Número de documento Ordenador de Pago], [P],
+  [83], [Documentos Tipo], [O],
+  [84], [Descripcion Documentos Tipo], [O],
+  [85], [Dirección de ejecución del contrato], [O],
+  [86], [Criterios de sostenibilidad ambiental], [O],
+  [87], [Requisitos ambientales en las especificaciones técnicas], [O],
+  [88], [Criterios ambientales en la evaluación de las ofertas], [O],
+  [89], [Obligaciones contractuales o poscontractuales a nivel ambiental], [O],
+  [90], [Uso de etiquetado ecológico], [O],
+  [91], [Obligaciones posconsumo], [O],
+  [92], [Fecha inicio obligaciones posconsumo], [O],
+  [93], [Fecha fin obligaciones posconsumo], [O],
+  [94], [Fecha inicio reversión], [O],
+  [95], [Fecha fin reversión], [O],
+)
+]
+
 = Etapa 1: Entrada de Map por conjunto de datos
 
 == Estructura del chunk para Procesos de Contratación
@@ -74,7 +320,6 @@ Cada Worker recibe un fragmento del conjunto de Contratos Electrónicos de SECOP
   [`proveedor_adjudicado`], [`string`], [Nombre del proveedor adjudicado],
   [`valor_del_contrato`], [`uint64`], [Valor total del contrato en pesos],
   [`codigo_de_categoria_principal`], [`string`], [Código UNSPSC de la categoría del bien/servicio],
-  [`modalidad_de_contratacion`], [`string`], [Modalidad de contratación utilizada],
   [`fecha_de_firma`], [`string`], [Fecha de firma del contrato],
 )
 
