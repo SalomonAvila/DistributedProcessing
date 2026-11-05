@@ -8,7 +8,7 @@ El sistema procesa los conjuntos de datos abiertos de SECOP II (Procesos de Cont
 
 ### Documentacion Tecnica
 
-Los documentos tecnicos se escriben en [Typst](https://typst.app) (`.typ`) y se compilan automaticamente a PDF por un GitHub Action al hacer push a `main`, publicandose en `RenderedDocuments/` junto con los diagramas `.drawio` exportados a PNG.
+Los documentos tecnicos se escriben en [Typst](https://typst.app) (`.typ`) y se compilan automaticamente a PDF en la carpeta `rendered/` de la raiz del repositorio en cada push a `main` (workflow `.github/workflows/render-docs.yml`). Los diagramas `.drawio` no se exportan automaticamente.
 
 - **`00-propuesta.typ`**: Propuesta formal del proyecto
   - Objetivo general y objetivos especificos
@@ -75,7 +75,7 @@ Todos los diagramas estan en formato `.drawio` (compatible con [Draw.io](https:/
 
 ## Notas para Desarrolladores
 
-- Los documentos tecnicos estan en formato Typst (`.typ`); no se versionan los PDF ni PNG generados a mano, esos se publican automaticamente en `RenderedDocuments/` via GitHub Actions
+- Los documentos tecnicos estan en formato Typst (`.typ`); no se versionan los PDF ni PNG generados a mano, los PDF los genera y commitea automaticamente GitHub Actions en `rendered/`
 - El `docker-compose.yaml` en la raiz del proyecto es **solo para desarrollo local** y no representa la topologia real de produccion (que es Kubernetes). No tiene healthchecks, por lo que no sirve para validar recuperacion de procesos
 - La generacion de codigo gRPC a partir de `src/proto/mapreduce.proto` requiere `protoc` con los plugins `protoc-gen-go` y `protoc-gen-go-grpc`
 - La documentacion se actualiza conforme evoluciona la arquitectura

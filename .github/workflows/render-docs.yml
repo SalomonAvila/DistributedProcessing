@@ -1,0 +1,73 @@
+name: Render Typst docs
+
+# En cada push a main compila todos los .typ de docs/ a PDF y los deja en
+# rendered/ (en la raíz del repo), con el mismo nombre de archivo.
+# Los PDF se commitean de vuelta a main. El commit lo hace GITHUB_TOKEN, y los
+# pushes con GITHUB_TOKEN no disparan workflows, así que no se crea un ciclo.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# Dos pushes seguidos no deben competir por commitear rendered/.
+concurrency:
+  group: render-docs
+  cancel-in-progress: false
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 01, 02 y 03 usan Liberation Serif; New Computer Modern ya viene
+      # incluida en Typst.
+      - name: Install fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-liberation
+
+      - name: Setup Typst
+        uses: typst-community/setup-typst@v4
+        with:
+          typst-version: "0.15.1"
+
+      # SOURCE_DATE_EPOCH fija la fecha embebida en el PDF a la del último
+      # commit que tocó docs/. Así, si los .typ no cambiaron, los PDF salen
+      # idénticos y no se crea un commit vacío en cada push.
+      - name: Render docs to PDF
+        run: |
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct -- docs)"
+          mkdir -p rendered
+          shopt -s nullglob
+          files=(docs/*.typ)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No hay archivos .typ en docs/"
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            out="rendered/$(basename "${f%.typ}").pdf"
+            echo "==> $f -> $out"
+            typst compile --root . "$f" "$out"
+          done
+
+      - name: Commit rendered PDFs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add rendered
+          if git diff --cached --quiet; then
+            echo "Los PDF no cambiaron; nada que commitear."
+            exit 0
+          fi
+          git commit -m "docs: renderizar PDFs de docs/"
+          # Si entró otro push a main mientras corría el job, se rebasa encima.
+          git pull --rebase origin main
+          git push origin HEAD:main

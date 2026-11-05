@@ -162,4 +162,4 @@ La documentación formal está en `docs/`, en formato [Typst](https://typst.app)
 | `03-esquema-datos.typ` | Contratos de datos de entrada, intermedios y salida, y definición en Protocol Buffers |
 | `04-rag.typ` | Arquitectura preliminar de la plataforma completa: persistencia, índice vectorial y RAG híbrido |
 
-Los diagramas de componentes, despliegue, secuencia y del pipeline MapReduce están en `docs/*.drawio`. Para compilar un documento: `typst compile docs/00-propuesta.typ`.
+Los diagramas de componentes, despliegue, secuencia y del pipeline MapReduce están en `docs/*.drawio`. Los PDF se generan automáticamente en la carpeta `rendered/` en cada push a `main`, mediante el workflow `.github/workflows/render-docs.yml`. Para compilar uno localmente: `typst compile --root . docs/00-propuesta.typ rendered/00-propuesta.pdf`.
