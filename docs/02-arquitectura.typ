@@ -224,7 +224,7 @@ Se evaluaron máquinas virtuales tradicionales, con más aislamiento pero un ove
 
 == Despliegue sobre Kubernetes
 
-El clúster consta de un Deployment de una réplica para el master, expuesto mediante un Service, y un StatefulSet de tres réplicas para los workers, expuesto mediante un Service headless que otorga nombre DNS estable a cada pod. La configuración de podAntiAffinity asegura que cada worker se programe en un nodo físico distinto de los otros dos.
+El clúster consta de un Deployment de una réplica para el master, expuesto mediante un Service, y un StatefulSet de tres réplicas para los workers, expuesto mediante un Service headless que otorga nombre DNS estable a cada pod. La configuración de podAntiAffinity asegura que cada worker se programe en un nodo físico distinto de los otros dos. El único componente accesible desde fuera del clúster es el front, que corre en `worker1` y escucha en el puerto 80 de la IP del nodo. El front reenvía las consultas a la API interna. Los Services del master, de los workers y de la API son de tipo `ClusterIP` y no son alcanzables desde la red de la universidad (ver `04-rag`, despliegue y acceso de usuarios).
 
 #figure(
   {
@@ -234,13 +234,17 @@ El clúster consta de un Deployment de una réplica para el master, expuesto med
       #text(weight: "bold", fill: navy)[Clúster Kubernetes]
       #v(4pt)
       #grid(
-        columns: (auto, auto),
-        column-gutter: 10pt,
+        columns: (auto, auto, auto, 1fr, auto),
+        column-gutter: 8pt,
+        row-gutter: 4pt,
         align: horizon,
-        group[Deployment: master][#nodebox[Pod master \ Go + gRPC]],
-        text(size: 7.5pt, fill: luma(80))[← Service: `master-svc`],
+        group[Deployment: front][#nodebox[Pod front (nginx) \ worker1:80]],
+        arr[→],
+        group[API del RAG][#nodebox[Service `ClusterIP`]],
+        [],
+        group[Deployment: master][#nodebox[Pod master \ Go + gRPC \ Service `ClusterIP`]],
+        [], [], [], [], [#arr[↓] #text(size: 7.5pt)[gRPC]],
       )
-      #arr[↓] #text(size: 7.5pt)[gRPC]
       #group[StatefulSet: workers (Service headless)][
         #grid(
           columns: 3,
@@ -252,11 +256,17 @@ El clúster consta de un Deployment de una réplica para el master, expuesto med
       ]
     ]
     v(-2pt)
-    arr[↑]
-    nodebox[Cliente (CLI / API) \ vía `master-svc`]
+    // Alineado bajo el front: borde izquierdo del recuadro (4 %) + su inset.
+    align(left, pad(left: 4% + 10pt, box(width: 3.1cm, align(center, stack(
+      dir: ttb,
+      spacing: 2pt,
+      arr[↑],
+      nodebox(width: 3.1cm)[Usuario en la \ red de la universidad],
+      text(size: 7pt)[HTTP, puerto 80 \ (única regla del firewall)],
+    )))))
   },
   kind: image,
-  caption: [Despliegue del master y los workers sobre Kubernetes.],
+  caption: [Despliegue sobre Kubernetes. El front es el único punto de entrada; todo lo demás es interno al clúster.],
 )
 
 == Flujo del pipeline de dos etapas
