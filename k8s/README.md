@@ -56,7 +56,41 @@ Los nombres tienen que coincidir con `DATA_PROCESOS_PATH` / `DATA_CONTRATOS_PATH
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/worker-statefulset.yaml
 kubectl apply -f k8s/master-deployment.yaml
+kubectl apply -f k8s/front.yaml
 ```
+
+## 2.5. Acceso desde la red de la universidad
+
+**Objetivo:** cualquier persona en la red de la universidad puede abrir el front, y solo el front.
+
+```
+Campus ──TCP 80──► firewall del laboratorio ──► worker1:80 (pod front, hostNetwork)
+                                                     │  /api/ → rag-api (ClusterIP)
+                                                     ▼
+                              API del RAG, PostgreSQL, LLM, master, workers  ← solo ClusterIP
+```
+
+- **`front.yaml`:** despliega un nginx con `hostNetwork`, fijado a `worker1`, que escucha en el puerto 80 de la IP física del nodo. Sirve el front (por ahora una página provisional) y reenvía `/api/` a la API interna `rag-api:8000`.
+- **Ningún otro Service es `NodePort`, `LoadBalancer` ni usa `hostPort`.** Las IPs de pods y Services no son enrutables desde el campus, así que nada más es alcanzable. Mantener esta regla al agregar componentes.
+- **El firewall es la otra mitad del aislamiento.** Desde el campus, el segmento del laboratorio responde por ruta (último salto `10.195.250.6`), pero todo el tráfico se descarta. Hay que pedir al laboratorio de redes **una sola regla**:
+
+  > Permitir TCP 80 entrante desde la red del campus hacia la IP de `worker1`. Ningún otro puerto ni nodo.
+
+  Si el filtro está en el propio nodo y no en el router, la regla equivalente es `sudo ufw allow 80/tcp` en `worker1`. Para saber dónde está, revisen `sudo ufw status verbose` y `sudo iptables -S INPUT`.
+- **Cómo se entra:** `http://<IP de worker1>/`. Si se quiere un nombre (`secop.<dominio>.edu.co`), TI tiene que crear el registro DNS apuntando a esa IP.
+
+Verificación:
+
+```bash
+# Desde el clúster: el front responde en el nodo
+curl -s http://<IP de worker1>/healthz          # → ok
+
+# Desde un equipo del campus, fuera del laboratorio (cuando esté la regla):
+curl -s -o /dev/null -w "%{http_code}\n" http://<IP de worker1>/   # → 200
+curl -m 3 http://<IP de worker1>:50051                               # → timeout (el master no debe verse)
+```
+
+Mientras no exista la API, `/api/` responde 502 y la página provisional muestra "API no disponible". Es el comportamiento esperado.
 
 ## 3. Verificar que funciona
 

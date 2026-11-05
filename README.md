@@ -122,6 +122,8 @@ docker compose up --build
 
 `docker-compose.yaml` es solo para desarrollo: no tiene healthchecks, así que no sirve para validar la recuperación de procesos. El despliegue real en el clúster está documentado paso a paso en [`k8s/README.md`](k8s/README.md).
 
+**Acceso de usuarios:** el único punto de entrada es el front (`k8s/front.yaml`), que se publica en el puerto 80 de `worker1` para la red de la universidad y reenvía `/api/` a la API interna. Todos los demás componentes son internos al clúster. Ver la sección "Acceso desde la red de la universidad" en `k8s/README.md`.
+
 Los datasets completos se descargan de datos.gov.co y se ubican en `data/raw/`, que no se versiona. Ver [`data/README.md`](data/README.md).
 
 ### Variables de entorno principales

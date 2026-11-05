@@ -107,7 +107,12 @@ El motor se implementará en Go con arquitectura *Master–Worker*, comunicació
 
 Si un Worker deja de responder, el Master podrá reasignar sus tareas pendientes. Las salidas deben identificarse por ejecución y tarea para evitar contabilizar dos veces un resultado. Docker empaqueta los servicios y Kubernetes administra su despliegue y reinicio; Kubernetes no reemplaza al Master, pues este último controla las tareas MapReduce.
 
-*Estado actual del repositorio:* ya están implementados el Chunker (indexación por offsets del CSV), la cola de tareas en el Master, los heartbeats con reasignación de tareas ante timeout, el Shuffle entre Workers, los Jobs A, B1 y B2 y el join de la Etapa 2, además de los manifiestos de Kubernetes y la publicación de imágenes en GHCR. Quedan pendientes: ejecutar el join como tarea distribuida (hoy se calcula dentro del Master), persistir los resultados y todos los componentes de este documento posteriores al motor (Data Lake, PostgreSQL, pgvector, RAG y API).
+*Estado actual del repositorio:* ya están implementados el Chunker (indexación por offsets del CSV), la cola de tareas en el Master, los heartbeats con reasignación de tareas ante timeout, el Shuffle entre Workers, los Jobs A, B1 y B2 y el join de la Etapa 2, validados contra un oráculo secuencial en Python. También existen los manifiestos de Kubernetes, la publicación de imágenes en GHCR y el punto de entrada del front (@acceso). Quedan pendientes:
+
+- ejecutar el join como tarea distribuida, pues hoy se calcula dentro del Master;
+- persistir los resultados, que hoy solo se reportan en el log del Master;
+- volver a tres Workers en el clúster, ya que el StatefulSet corre temporalmente con dos réplicas;
+- todos los componentes de este documento posteriores al motor: PostgreSQL, pgvector, RAG, API e interfaz.
 
 = Cálculo de indicadores y unión de resultados
 
@@ -121,10 +126,13 @@ El diseño contempla tres trabajos independientes:
   $ D_p = (V_"contrato" - op("Mediana")(V_"categoría")) / (op("Mediana")(V_"categoría")) times 100. $
   La comparación debe considerar contratos suficientemente similares. No se deben promediar medianas locales de Workers para obtener la mediana global; se requiere un cálculo distribuido correcto o un método de cuantiles aproximados documentado.
 
-+ *Job B2 – Concentración:* mide qué porcentaje de los contratos de una entidad se adjudicó a un proveedor:
-  $ C_p = "contratos de la entidad adjudicados al proveedor" / "total de contratos de la entidad" times 100. $
++ *Job B2 – Concentración:* mide qué porcentaje de los contratos de un proveedor proviene de una misma entidad, como lo define la propuesta (`00-propuesta`) y lo implementa el código:
+  $ C_p = "contratos del proveedor con la entidad" / "total de contratos del proveedor" times 100. $
+  La variante centrada en la entidad (qué porcentaje de los contratos de una entidad gana un mismo proveedor) mide otra cosa: dependencia de la entidad frente a un proveedor. Queda como alternativa por evaluar (@abiertas).
 
 Los resultados se relacionan mediante un *Reduce Side Join* usando el identificador del proceso. El Shuffle agrupa los registros de los distintos Jobs por esa clave y Reduce combina sus indicadores. Se propone una unión externa izquierda desde los procesos, para conservar también los que no tienen contrato adjudicado.
+
+Hoy, los procesos sin contrato reciben valor cero en los indicadores ausentes y terminan con puntuación de riesgo alta. Antes de exponer cualquier ranking por el RAG se debe distinguir _dato ausente_ de _valor cero_; de lo contrario, el sistema respondería que los procesos no adjudicados son los más riesgosos.
 
 Opcionalmente, los indicadores pueden combinarse en un puntaje de priorización:
 $ R = w_1 S_c + w_2 S_p + w_3 S_k, $
@@ -153,7 +161,46 @@ El RAG híbrido decide cómo recuperar la información según la pregunta:
 
 Por ejemplo, "¿qué empresa obtuvo más contratos en 2021?" requiere SQL. En cambio, "¿por qué esta empresa presenta señales de riesgo?" requiere consultar sus indicadores en SQL y recuperar explicaciones o evidencias relacionadas mediante búsqueda vectorial.
 
-Se propone exponer el sistema mediante una API, por ejemplo FastAPI, que conecte la interfaz con el RAG. La aplicación no accederá directamente a las bases de datos. Las consultas SQL serán de solo lectura, con tablas permitidas, validación, límites y tiempos máximos. Las respuestas deberán mostrar cifras, periodo e identificadores de procesos o contratos cuando estén disponibles. Si no hay evidencia suficiente, el sistema deberá indicarlo y no inventar conclusiones.
+El RAG se expone mediante una API interna, por ejemplo FastAPI, que solo es accesible a través del front (@acceso). Ni el navegador ni el front acceden directamente a las bases de datos. Las consultas SQL serán de solo lectura, con tablas permitidas, validación, límites y tiempos máximos. Las respuestas deberán mostrar cifras, periodo e identificadores de procesos o contratos cuando estén disponibles. Si no hay evidencia suficiente, el sistema deberá indicarlo y no inventar conclusiones.
+
+= Despliegue y acceso de usuarios <acceso>
+
+El objetivo es que cualquier persona conectada a la red de la universidad pueda usar el front, y que ningún otro componente sea alcanzable desde fuera del clúster.
+
+#figure(
+  {
+    set align(center + horizon)
+    grid(
+      columns: 7,
+      column-gutter: 4pt,
+      nodebox[Usuario en la \ red del campus], arr[→],
+      nodebox[Firewall del \ laboratorio \ (solo TCP 80)], arr[→],
+      nodebox[Front (nginx) \ worker1:80], arr[→],
+      stack(spacing: 5pt, nodebox[API del RAG], db[PostgreSQL \ + pgvector]),
+    )
+  },
+  caption: [Único punto de entrada. Todo lo que está a la derecha del front es interno al clúster.],
+)
+
+- *Un único punto de entrada:* el front corre en `worker1` con red de host y escucha en el puerto 80 de la IP física del nodo (manifiesto `k8s/front.yaml`). Se ubica en el mismo nodo que el Master y no en un Worker, para que las pruebas de tolerancia a fallos no lo afecten.
+- *API detrás del front:* el servidor del front reenvía las rutas `/api/` a la API por la red interna del clúster. El navegador nunca se comunica con la API ni con las bases de datos.
+- *Todo lo demás es interno:* API, PostgreSQL/pgvector, LLM, Master y Workers se publican solo como Services `ClusterIP`, sin `NodePort`, `LoadBalancer` ni `hostPort`. Las direcciones internas del clúster no son enrutables desde el campus.
+- *Firewall:* desde la red del campus existe ruta hacia el segmento del laboratorio, pero el tráfico se descarta. Se solicitará al laboratorio de redes una única regla: permitir TCP 80 desde el campus hacia la IP de `worker1`. Por ahora se asume que esta apertura es posible.
+- *Acceso:* los usuarios entran por `http://<IP de worker1>/`. Un nombre de dominio institucional requeriría un registro DNS gestionado por TI.
+
+No se usa un _Ingress controller_ porque solo se publica una aplicación en una única IP. Si más adelante se requiere HTTPS gestionado o publicar varias aplicaciones, se migrará a Ingress o Gateway API. El sistema no incluye autenticación (ver no-objetivos en `01-alcance`), por lo que el front y la API solo deben exponer información pública de SECOP II.
+
+= Decisiones abiertas <abiertas>
+
+Las siguientes decisiones sobre el RAG se dejan explícitamente abiertas y se resolverán antes de implementar la persistencia:
+
++ *Catálogo de preguntas objetivo:* entre 15 y 20 preguntas reales, clasificadas como SQL, semánticas o mixtas. De este catálogo se derivan el esquema de PostgreSQL y lo que se vectoriza.
++ *Dimensiones descriptivas:* las salidas actuales del motor no incluyen fechas, ubicación, sector ni textos. Sin esos datos no se pueden responder preguntas como "¿qué empresa obtuvo más contratos en 2021?" o "procesos de riesgo alto en Chocó". Hay que decidir si esos datos se arrastran a través de los jobs o se cargan directamente desde los datos procesados.
++ *Qué se vectoriza:* las explicaciones de alertas se derivan de las mismas cifras que ya están en SQL y pueden generarse con plantillas. Los campos con texto libre real (`Objeto del Contrato`, `Descripción del Procedimiento`, `Justificación Modalidad de Contratación`) son los candidatos naturales para la búsqueda semántica.
++ *Datos personales:* Contratos Electrónicos incluye documentos de representantes legales, supervisores y ordenadores del gasto, además de datos bancarios. Se recomienda excluirlos de PostgreSQL, de los embeddings y del contexto del LLM.
++ *Embeddings como trabajo distribuido:* calcular los vectores de millones de descripciones es un cómputo paralelizable que podría ejecutarse como un Job del propio motor MapReduce.
++ *Definición de concentración:* centrada en el proveedor, como hoy, o en la entidad, o ambas.
++ *Componentes opcionales:* evaluar si MinIO y Airflow aportan lo suficiente frente a su costo de operación, o si bastan el sistema de archivos del nodo y un script del pipeline.
 
 = Operación, tecnologías y etapas
 
@@ -176,7 +223,8 @@ Airflow podrá coordinar las etapas periódicas de ingesta, preparación, ejecuc
       [*Despliegue*], [Docker y Kubernetes.],
       [*Persistencia*], [PostgreSQL para información estructurada.],
       [*Búsqueda semántica*], [pgvector y un modelo de embeddings.],
-      [*RAG y API*], [Router, recuperadores SQL/vectoriales, LLM y FastAPI.],
+      [*RAG y API*], [Router, recuperadores SQL/vectoriales, LLM y FastAPI (interna).],
+      [*Front y acceso*], [nginx en `worker1:80` como único punto de entrada desde el campus.],
       [*Operación*], [Airflow para orquestación; Prometheus y Grafana para monitoreo.],
       table.hline(stroke: 1pt),
     )
@@ -185,6 +233,6 @@ Airflow podrá coordinar las etapas periódicas de ingesta, preparación, ejecuc
   caption: [Tecnologías propuestas por componente.],
 )
 
-*Plan de implementación:* (1) ingesta y almacenamiento; (2) motor MapReduce genérico y tolerancia a fallos; (3) Jobs A, B1, B2 y Reduce Side Join; (4) persistencia en PostgreSQL; (5) documentos y embeddings en pgvector; (6) RAG híbrido; (7) API e interfaz; (8) automatización y monitoreo.
+*Plan de implementación:* (1) ingesta y almacenamiento; (2) motor MapReduce genérico y tolerancia a fallos; (3) Jobs A, B1, B2 y Reduce Side Join; (4) persistencia en PostgreSQL; (5) documentos y embeddings en pgvector; (6) RAG híbrido; (7) API, interfaz y apertura del puerto de acceso con el laboratorio de redes; (8) automatización y monitoreo.
 
 *Resultado esperado:* una plataforma que procese SECOP II de forma distribuida, produzca indicadores trazables y permita consultar tanto estadísticas como explicaciones mediante lenguaje natural. La arquitectura es preliminar: el esquema físico definitivo, los pesos del ranking, los umbrales y las decisiones finales de infraestructura deberán validarse durante la implementación.
