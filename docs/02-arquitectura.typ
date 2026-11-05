@@ -11,6 +11,34 @@
 #set heading(numbering: "1.")
 #set par(justify: true)
 
+// ---- Bloques de diagrama (mismo estilo que 04-rag) ----
+#let navy = rgb("#17365D")
+#let pale = rgb("#EAF0F7")
+#let dbfill = rgb("#EDF7ED")
+#let nodebox(width: 2.6cm, body) = box(
+  width: width,
+  inset: 5pt,
+  radius: 3pt,
+  stroke: 1pt + navy,
+  fill: pale,
+  align(center, text(size: 7.5pt, body)),
+)
+#let db(body) = box(
+  width: 2.8cm,
+  inset: 5pt,
+  radius: (top: 8pt, bottom: 8pt),
+  stroke: 0.8pt + luma(110),
+  fill: dbfill,
+  align(center, text(size: 7.5pt, body)),
+)
+#let arr(sym) = text(fill: navy, size: 13pt, weight: "bold", sym)
+#let group(title, body) = block(
+  stroke: (paint: navy, dash: "dashed", thickness: 0.8pt),
+  radius: 4pt,
+  inset: 7pt,
+  align(center)[#text(size: 7.5pt, weight: "bold")[#title] #v(2pt) #body],
+)
+
 #show heading.where(level: 1): it => {
   v(1em)
   text(size: 16pt, weight: "bold")[#it]
@@ -198,54 +226,67 @@ Se evaluaron máquinas virtuales tradicionales, con más aislamiento pero un ove
 
 El clúster consta de un Deployment de una réplica para el master, expuesto mediante un Service, y un StatefulSet de tres réplicas para los workers, expuesto mediante un Service headless que otorga nombre DNS estable a cada pod. La configuración de podAntiAffinity asegura que cada worker se programe en un nodo físico distinto de los otros dos.
 
-```
-┌──────────────────────────────────────────────────────┐
-│                    Clúster Kubernetes                │
-│                                                        │
-│   ┌────────────────────┐                              │
-│   │  Deployment: master│                               │
-│   │  ┌──────────────┐  │      Service: master-svc     │
-│   │  │ Pod master   │  │◄──────────────────────────┐  │
-│   │  │ (Go + gRPC)  │  │                            │  │
-│   │  └──────────────┘  │                            │  │
-│   └─────────┬───────────┘                           │  │
-│             │ gRPC                                   │  │
-│             ▼                                        │  │
-│   ┌────────────────────────────────────────────┐    │  │
-│   │  StatefulSet: workers (Service headless)    │    │  │
-│   │  ┌──────────┐ ┌──────────┐ ┌──────────┐    │    │  │
-│   │  │ worker-0 │ │ worker-1 │ │ worker-2 │    │    │  │
-│   │  │ Go + gRPC│ │ Go + gRPC│ │ Go + gRPC│    │    │  │
-│   │  └──────────┘ └──────────┘ └──────────┘    │    │  │
-│   │  podAntiAffinity: un worker por nodo físico │    │  │
-│   └────────────────────────────────────────────┘    │  │
-└──────────────────────────────────────────────────────┘  │
-                                                            │
-     Client (CLI / API) ────────────────────────────────────┘
-```
+#figure(
+  {
+    set text(size: 8pt)
+    set align(center)
+    block(stroke: 1pt + navy, radius: 4pt, inset: 10pt, width: 92%)[
+      #text(weight: "bold", fill: navy)[Clúster Kubernetes]
+      #v(4pt)
+      #grid(
+        columns: (auto, auto),
+        column-gutter: 10pt,
+        align: horizon,
+        group[Deployment: master][#nodebox[Pod master \ Go + gRPC]],
+        text(size: 7.5pt, fill: luma(80))[← Service: `master-svc`],
+      )
+      #arr[↓] #text(size: 7.5pt)[gRPC]
+      #group[StatefulSet: workers (Service headless)][
+        #grid(
+          columns: 3,
+          column-gutter: 8pt,
+          nodebox[worker-0 \ Go + gRPC], nodebox[worker-1 \ Go + gRPC], nodebox[worker-2 \ Go + gRPC],
+        )
+        #v(3pt)
+        #text(size: 7pt, style: "italic")[podAntiAffinity: un worker por nodo físico]
+      ]
+    ]
+    v(-2pt)
+    arr[↑]
+    nodebox[Cliente (CLI / API) \ vía `master-svc`]
+  },
+  kind: image,
+  caption: [Despliegue del master y los workers sobre Kubernetes.],
+)
 
 == Flujo del pipeline de dos etapas
 
 El master coordina dos etapas de procesamiento sobre los workers, según lo definido en el esquema de datos del proyecto. En la Etapa 1, los Jobs A, B1 y B2 se ejecutan de forma independiente, cada uno particionando su conjunto de datos correspondiente entre los tres workers. En la Etapa 2, el master coordina el reduce-side join sobre los resultados agregados de la Etapa 1.
 
-```
-Etapa 1 (paralela, sin dependencia entre jobs)
- ┌────────────┐   ┌────────────┐   ┌────────────┐
- │  Job A      │   │  Job B1    │   │  Job B2    │
- │  Procesos   │   │  Precio    │   │  Concentr. │
- └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
-        │                 │                 │
-        ▼                 ▼                 ▼
- Tabla intermedia A  Tabla intermedia B1  Tabla intermedia B2
-
-Etapa 2 (join distribuido)
-        └────────────────┬────────────────┘
-                          ▼
-              Reduce-side join por id_del_proceso
-                          │
-                          ▼
-              Reporte de riesgo consolidado
-```
+#figure(
+  {
+    set text(size: 8pt)
+    set align(center + horizon)
+    grid(
+      columns: (auto, 3cm, 3cm, 3cm),
+      column-gutter: 8pt,
+      row-gutter: 5pt,
+      text(weight: "bold", fill: navy)[Etapa 1 \ #text(weight: "regular", size: 7pt)[paralela, sin \ dependencias]],
+      nodebox[Job A \ Competencia \ (Procesos)],
+      nodebox[Job B1 \ Precio \ (Contratos)],
+      nodebox[Job B2 \ Concentración \ (Contratos)],
+      [], arr[↓], arr[↓], arr[↓],
+      [], db[Tabla intermedia A], db[Tabla intermedia B1], db[Tabla intermedia B2],
+      [], arr[↘], arr[↓], arr[↙],
+      text(weight: "bold", fill: navy)[Etapa 2 \ #text(weight: "regular", size: 7pt)[join \ distribuido]],
+      grid.cell(colspan: 3, nodebox(width: 6cm)[Reduce-side join por `id_del_proceso`]),
+      [], grid.cell(colspan: 3, arr[↓]),
+      [], grid.cell(colspan: 3, nodebox(width: 6cm)[Reporte de riesgo consolidado]),
+    )
+  },
+  kind: image,
+  caption: [Flujo del pipeline de dos etapas.],
+)
 
 == Estrategia de particionamiento y asignación de datos (Chunker y Work Queue)
 

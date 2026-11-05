@@ -47,18 +47,12 @@ Todos los diagramas estan en formato `.drawio` (compatible con [Draw.io](https:/
 
 ## Stack Tecnologico
 
-```
-┌──────────────────────────────────────────────────┐
-│  Lenguaje: Go                                    │
-├──────────────────────────────────────────────────┤
-│  Protocolo: gRPC + Protocol Buffers v3           │
-├──────────────────────────────────────────────────┤
-│  Contenedorizacion: Docker (multi-stage, scratch)│
-├──────────────────────────────────────────────────┤
-│  Orquestacion: Kubernetes (StatefulSet + headless│
-│  Service para workers, Deployment para master)   │
-└──────────────────────────────────────────────────┘
-```
+| Capa | Tecnologia |
+|---|---|
+| Lenguaje | Go |
+| Protocolo | gRPC + Protocol Buffers v3 |
+| Contenedorizacion | Docker (multi-stage, scratch) |
+| Orquestacion | Kubernetes (StatefulSet + Service headless para workers, Deployment para master) |
 
 ## Quick Facts
 

@@ -39,10 +39,17 @@ Los tres jobs forman la **Etapa 1** y corren en paralelo, sin dependencias entre
 
 ## Arquitectura
 
-```
-SECOP II (CSV) ──► Chunker ──► Master ──gRPC──► Workers (Map → Shuffle → Reduce)
-                                 │
-                                 └──► Join (Etapa 2) ──► Resultados ──► PostgreSQL + pgvector ──► RAG híbrido ──► API
+```mermaid
+flowchart LR
+    secop[("SECOP II<br/>CSV")] --> chunker["Chunker"]
+    chunker --> master["Master"]
+    master -- gRPC --> workers["Workers<br/>Map → Shuffle → Reduce"]
+    workers --> join["Join<br/>(Etapa 2)"]
+    join --> res[("Resultados")]
+    res --> pg[("PostgreSQL<br/>+ pgvector")]
+    pg --> rag["RAG híbrido"]
+    rag --> api["API"]
+    api --> front["Front"]
 ```
 
 - **Master:** indexa los CSV por offsets de bytes (nunca carga el dataset completo en memoria), mantiene la cola de tareas, asigna chunks, detecta workers caídos por timeout de heartbeat, reasigna sus tareas y coordina el join.

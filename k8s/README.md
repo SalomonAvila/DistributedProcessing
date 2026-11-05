@@ -63,11 +63,21 @@ kubectl apply -f k8s/front.yaml
 
 **Objetivo:** cualquier persona en la red de la universidad puede abrir el front, y solo el front.
 
-```
-Campus ──TCP 80──► firewall del laboratorio ──► worker1:80 (pod front, hostNetwork)
-                                                     │  /api/ → rag-api (ClusterIP)
-                                                     ▼
-                              API del RAG, PostgreSQL, LLM, master, workers  ← solo ClusterIP
+```mermaid
+flowchart LR
+    campus["Usuario en la<br/>red del campus"] -- "TCP 80" --> fw["Firewall del<br/>laboratorio"]
+    fw --> front["front (nginx)<br/>worker1:80, hostNetwork"]
+    subgraph interno["Solo ClusterIP: no alcanzable desde el campus"]
+        api["rag-api"]
+        pg[("PostgreSQL<br/>+ pgvector")]
+        llm["LLM"]
+        master["master"]
+        workers["workers"]
+    end
+    front -- "/api/" --> api
+    api --> pg
+    api --> llm
+    master --> workers
 ```
 
 - **`front.yaml`:** despliega un nginx con `hostNetwork`, fijado a `worker1`, que escucha en el puerto 80 de la IP física del nodo. Sirve el front (por ahora una página provisional) y reenvía `/api/` a la API interna `rag-api:8000`.
