@@ -1,6 +1,16 @@
-# DistributedProcessing
+# Procesamiento distribuido de SECOP II y consulta en lenguaje natural mediante RAG híbrido
 
-Motor de procesamiento distribuido, construido desde cero en Go, para el análisis de riesgo en la contratación pública colombiana a partir de los datasets abiertos de SECOP II. El sistema implementa el paradigma MapReduce sobre una arquitectura Master Worker con un master y tres workers, orquestada mediante Kubernetes.
+## Integrantes
+
+- Salomon Avila
+- Andrés Felipe Caro
+- Eliana Pardo
+- Gabriela Bonilla
+- Samuel Montaña
+
+## Resumen
+
+La contratación pública colombiana se publica de forma abierta en SECOP II, pero repartida en dos conjuntos de datos que no se cruzan entre sí: Procesos de Contratación, con más de 9 millones de registros, y Contratos Electrónicos. Por eso es difícil detectar señales de riesgo y consultar esa información sin conocimientos técnicos. Este proyecto construye desde cero, en Go, un motor de procesamiento distribuido basado en MapReduce, con arquitectura Master–Worker (un master y tres workers), comunicación gRPC y despliegue en Kubernetes. El motor calcula tres indicadores en paralelo: el índice de competencia real, la desviación de precio frente a la mediana de la categoría UNSPSC y la concentración proveedor–entidad. Luego los combina mediante un reduce-side join distribuido en un indicador conjunto de riesgo por proceso. El sistema tolera fallos a nivel de tarea, mediante heartbeats y reasignación de chunks, y a nivel de proceso, mediante Kubernetes. Su rendimiento se evalúa con speedup, eficiencia, throughput y tiempos de recuperación. Los resultados se cargan en una base analítica y se exponen mediante un RAG híbrido, que combina consultas SQL con búsqueda semántica, para que cualquier persona pueda hacer preguntas estadísticas y explicativas en lenguaje natural. Los indicadores son una herramienta de priorización para investigación posterior, no una prueba de irregularidad.
 
 ## Qué problema resuelve
 
