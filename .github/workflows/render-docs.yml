@@ -1,13 +1,23 @@
 name: Render Typst docs
 
-# En cada push a main compila todos los .typ de docs/ a PDF y los deja en
-# rendered/ (en la raíz del repo), con el mismo nombre de archivo.
+# En cada push a main compila a PDF solo los .typ de docs/ que cambiaron en ese
+# push y los deja en rendered/ (en la raíz del repo), con el mismo nombre de
+# archivo. Si se borra un .typ, se borra también su PDF.
+#
+# Se renderiza todo cuando no se puede calcular el rango del push (primer
+# push de la rama o force-push), cuando cambia este mismo workflow, o cuando
+# se lanza a mano desde la pestaña Actions (workflow_dispatch).
+#
 # Los PDF se commitean de vuelta a main. El commit lo hace GITHUB_TOKEN, y los
 # pushes con GITHUB_TOKEN no disparan workflows, así que no se crea un ciclo.
 on:
   push:
     branches:
       - main
+    # Si el push no toca ningún .typ ni este workflow, el job ni arranca.
+    paths:
+      - "docs/**.typ"
+      - ".github/workflows/render-docs.yml"
   workflow_dispatch: {}
 
 permissions:
@@ -25,44 +35,109 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          # Historial completo: hace falta para comparar contra el commit
+          # anterior al push y para fechar cada PDF con su último commit.
           fetch-depth: 0
+
+      - name: Detect changed docs
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mode=changed
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "Ejecución manual: se renderizan todos los documentos."
+            mode=all
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+               || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "No hay commit anterior utilizable (primer push o force-push): se renderiza todo."
+            mode=all
+          elif ! git diff --quiet "$BEFORE" "$AFTER" -- .github/workflows/render-docs.yml; then
+            echo "Cambió el workflow: se renderiza todo."
+            mode=all
+          fi
+
+          : > "$RUNNER_TEMP/to_render.txt"
+          : > "$RUNNER_TEMP/to_delete.txt"
+          if [ "$mode" = "all" ]; then
+            find docs -maxdepth 1 -name '*.typ' | sort > "$RUNNER_TEMP/to_render.txt"
+          else
+            # --no-renames: un renombre aparece como borrado (D) + agregado (A),
+            # así se elimina el PDF viejo y se genera el nuevo.
+            git diff --name-status --no-renames "$BEFORE" "$AFTER" -- 'docs/*.typ' |
+              while IFS=$'\t' read -r status path; do
+                case "$status" in
+                  D) echo "$path" >> "$RUNNER_TEMP/to_delete.txt" ;;
+                  *) echo "$path" >> "$RUNNER_TEMP/to_render.txt" ;;
+                esac
+              done
+          fi
+
+          # Un .typ que todavía no tiene PDF también se renderiza, aunque no
+          # haya cambiado en este push (por ejemplo, la primera vez).
+          for f in docs/*.typ; do
+            [ -e "$f" ] || continue
+            [ -e "rendered/$(basename "${f%.typ}").pdf" ] || echo "$f" >> "$RUNNER_TEMP/to_render.txt"
+          done
+          sort -u -o "$RUNNER_TEMP/to_render.txt" "$RUNNER_TEMP/to_render.txt"
+
+          echo "Para renderizar:"; sed 's/^/  /' "$RUNNER_TEMP/to_render.txt"
+          echo "Para borrar:";     sed 's/^/  /' "$RUNNER_TEMP/to_delete.txt"
+          if [ -s "$RUNNER_TEMP/to_render.txt" ]; then
+            echo "render=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "render=false" >> "$GITHUB_OUTPUT"
+          fi
 
       # 01, 02 y 03 usan Liberation Serif; New Computer Modern ya viene
       # incluida en Typst.
       - name: Install fonts
+        if: steps.detect.outputs.render == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends fonts-liberation
 
       - name: Setup Typst
+        if: steps.detect.outputs.render == 'true'
         uses: typst-community/setup-typst@v4
         with:
           typst-version: "0.15.1"
 
-      # SOURCE_DATE_EPOCH fija la fecha embebida en el PDF a la del último
-      # commit que tocó docs/. Así, si los .typ no cambiaron, los PDF salen
-      # idénticos y no se crea un commit vacío en cada push.
-      - name: Render docs to PDF
+      # SOURCE_DATE_EPOCH fija la fecha embebida en cada PDF a la del último
+      # commit que tocó ese .typ. Así, volver a renderizar un documento que no
+      # cambió produce exactamente el mismo PDF y no genera un commit vacío.
+      - name: Render changed docs to PDF
+        if: steps.detect.outputs.render == 'true'
         run: |
-          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct -- docs)"
+          set -euo pipefail
           mkdir -p rendered
-          shopt -s nullglob
-          files=(docs/*.typ)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No hay archivos .typ en docs/"
-            exit 0
-          fi
-          for f in "${files[@]}"; do
+          while IFS= read -r f; do
             out="rendered/$(basename "${f%.typ}").pdf"
             echo "==> $f -> $out"
-            typst compile --root . "$f" "$out"
-          done
+            SOURCE_DATE_EPOCH="$(git log -1 --format=%ct -- "$f")" \
+              typst compile --root . "$f" "$out"
+          done < "$RUNNER_TEMP/to_render.txt"
+
+      - name: Remove PDFs of deleted docs
+        run: |
+          set -euo pipefail
+          while IFS= read -r f; do
+            out="rendered/$(basename "${f%.typ}").pdf"
+            if [ -e "$out" ]; then
+              echo "==> borrando $out"
+              git rm -q "$out"
+            fi
+          done < "$RUNNER_TEMP/to_delete.txt"
 
       - name: Commit rendered PDFs
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add rendered
+          if [ -d rendered ]; then git add -A rendered; fi
           if git diff --cached --quiet; then
             echo "Los PDF no cambiaron; nada que commitear."
             exit 0
