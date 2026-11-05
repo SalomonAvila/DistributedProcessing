@@ -18,7 +18,7 @@ La contratación pública colombiana se publica de forma abierta en SECOP II, pe
 SECOP II publica la contratación pública de Colombia en dos conjuntos de datos separados:
 
 - **Procesos de Contratación** (unos 9,14 millones de filas, 59 columnas, con actualización diaria): registra el embudo de competencia de cada proceso, es decir, los proveedores invitados, los que manifestaron interés y los que efectivamente respondieron.
-- **Contratos Electrónicos** (unos 6 millones de filas, 85 columnas): registra el contrato adjudicado, con el proveedor ganador, la entidad, el valor, la categoría UNSPSC y la modalidad.
+- **Contratos Electrónicos** (unos 6 millones de filas, 95 columnas): registra el contrato adjudicado, con el proveedor ganador, la entidad, el valor, la categoría UNSPSC y la modalidad.
 
 No existe un indicador público que cruce ambas fuentes, y la información tampoco es fácil de consultar sin conocimientos técnicos. El proyecto ataca los dos problemas:
 

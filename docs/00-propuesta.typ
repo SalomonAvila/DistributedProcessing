@@ -31,7 +31,7 @@ La información proviene de dos conjuntos de datos del portal datos.gov.co, sumi
 
 Procesos de Contratación contiene 9,14 millones de filas y 59 columnas, con actualización diaria. Registra el embudo completo de competencia por proceso: número de proveedores invitados, proveedores que manifestaron interés, y proveedores únicos que presentaron respuesta.
 
-Contratos Electrónicos contiene 85 columnas con información del contrato ya adjudicado, incluyendo identificación del proveedor ganador por NIT, entidad contratante por NIT, valor total del contrato, categoría UNSPSC y modalidad de contratación.
+Contratos Electrónicos contiene 95 columnas con información del contrato ya adjudicado, incluyendo identificación del proveedor ganador por NIT, entidad contratante por NIT, valor total del contrato, categoría UNSPSC y modalidad de contratación.
 
 La llave de unión entre ambos conjuntos es id_del_proceso en Procesos equivalente a proceso_de_compra en Contratos.
 
