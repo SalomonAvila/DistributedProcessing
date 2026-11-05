@@ -21,11 +21,17 @@ kubectl apply -f "$K8S_DIR/worker-statefulset.yaml"
 echo "==> Aplicando master (Deployment + Service)"
 kubectl apply -f "$K8S_DIR/master-deployment.yaml"
 
+echo "==> Aplicando front (único punto de entrada, hostNetwork en worker1:80)"
+kubectl apply -f "$K8S_DIR/front.yaml"
+
 echo "==> Esperando rollout de workers"
 kubectl -n "$NAMESPACE" rollout status statefulset/worker --timeout=120s
 
 echo "==> Esperando rollout del master"
 kubectl -n "$NAMESPACE" rollout status deployment/master --timeout=120s
+
+echo "==> Esperando rollout del front"
+kubectl -n "$NAMESPACE" rollout status deployment/front --timeout=120s
 
 echo "==> Pods:"
 kubectl -n "$NAMESPACE" get pods -o wide

@@ -44,7 +44,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("[Master] Error al escuchar en :%s: %v", masterPort, err)
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(maxGRPCMsgBytes()))
 	pb.RegisterMasterServiceServer(grpcServer, coordinator)
 
 	go func() {
@@ -271,4 +271,17 @@ func enqueueContractTask(tm *master.TaskManager, path string, ref chunker.ChunkR
 			}, nil
 		},
 	})
+}
+
+// maxGRPCMsgBytes es el tamaño máximo de mensaje que acepta el servidor
+// gRPC. El default de gRPC (4MB) no alcanza para los chunks del dataset
+// real ni para los resultados de REDUCE; se configura con GRPC_MAX_MSG_MB.
+func maxGRPCMsgBytes() int {
+	mb := 512
+	if env := os.Getenv("GRPC_MAX_MSG_MB"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil && val > 0 {
+			mb = val
+		}
+	}
+	return mb * 1024 * 1024
 }

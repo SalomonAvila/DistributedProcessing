@@ -679,7 +679,7 @@ func main() {
 		log.Fatalf("[%s] Fallo al escuchar en :%s: %v", workerID, port, err)
 	}
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.MaxRecvMsgSize(maxGRPCMsgBytes()))
 
 	srv := &workerServer{
 		workerID:      workerID,
@@ -701,4 +701,17 @@ func main() {
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Fatalf("[%s] Fallo al servir: %v", workerID, err)
 	}
+}
+
+// maxGRPCMsgBytes es el tamaño máximo de mensaje que acepta el servidor
+// gRPC. El default de gRPC (4MB) no alcanza para los chunks del dataset
+// real ni para los resultados de REDUCE; se configura con GRPC_MAX_MSG_MB.
+func maxGRPCMsgBytes() int {
+	mb := 512
+	if env := os.Getenv("GRPC_MAX_MSG_MB"); env != "" {
+		if val, err := strconv.Atoi(env); err == nil && val > 0 {
+			mb = val
+		}
+	}
+	return mb * 1024 * 1024
 }

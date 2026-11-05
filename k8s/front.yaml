@@ -1,0 +1,191 @@
+# Front: ÚNICO punto de entrada al sistema desde la red de la universidad.
+#
+# Modelo de exposición (ver k8s/README.md, sección "Acceso desde la red de
+# la universidad"):
+#   - Este pod corre con hostNetwork en worker1 y escucha en el puerto 80 de
+#     la IP física del nodo. Es lo único que se publica: el firewall del
+#     laboratorio solo abre TCP 80 desde el campus hacia la IP de worker1.
+#   - Todo lo demás (master, workers y, más adelante, la API del RAG,
+#     PostgreSQL/pgvector y el LLM) son Services ClusterIP, sin NodePort ni
+#     hostPort, así que no son alcanzables desde fuera del clúster.
+#   - El navegador nunca habla con la API directamente: nginx reenvía /api/
+#     a la API por la red interna del clúster.
+#
+# Se usa hostNetwork en vez de un Ingress controller porque solo se expone
+# una aplicación y la entrada es una única IP: un controller no aporta
+# nada y agrega un componente más que mantener. Si más adelante hace falta
+# TLS gestionado o varias aplicaciones, migrar a Gateway API / Ingress.
+#
+# Mientras no exista el front real, se sirve una página provisional desde
+# el ConfigMap "front-placeholder". Cuando exista, reemplazar la imagen por
+# la del front (que debe incluir esta misma configuración de nginx) y
+# quitar el volumen "html".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: front-nginx
+  namespace: distributed-processing
+data:
+  # La imagen oficial de nginx procesa /etc/nginx/templates/*.template con
+  # envsubst al arrancar y deja el resultado en /etc/nginx/conf.d/.
+  # NGINX_LOCAL_RESOLVERS lo calcula el propio entrypoint a partir de
+  # /etc/resolv.conf (DNS del clúster) cuando NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1.
+  default.conf.template: |
+    server {
+        listen 80 default_server;
+        server_name _;
+        server_tokens off;
+
+        # Resolución perezosa del Service de la API: si la API todavía no
+        # existe, nginx arranca igual y /api/ responde 502 en lugar de
+        # impedir que el front levante.
+        resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+        set $api_upstream ${API_UPSTREAM};
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header Referrer-Policy same-origin always;
+
+        location = /healthz {
+            access_log off;
+            default_type text/plain;
+            return 200 "ok\n";
+        }
+
+        # Reenvío a la API interna. Se conserva la ruta completa (/api/...),
+        # así que la API debe servir sus endpoints bajo /api.
+        location /api/ {
+            proxy_pass $api_upstream;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            # Las respuestas del LLM pueden tardar y llegar en streaming.
+            proxy_read_timeout 300s;
+            proxy_buffering off;
+            client_max_body_size 1m;
+        }
+
+        # SPA: cualquier ruta desconocida devuelve index.html.
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: front-placeholder
+  namespace: distributed-processing
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>SECOP II – Consulta</title>
+      <style>
+        body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; color: #1f2933; }
+        h1 { font-size: 1.4rem; }
+        p { line-height: 1.5; }
+        code { background: #eef2f7; padding: 0 .3rem; border-radius: 3px; }
+      </style>
+    </head>
+    <body>
+      <h1>Procesamiento distribuido de SECOP II</h1>
+      <p>El front de consulta todavía está en construcción. Esta página confirma que el punto de entrada del clúster es accesible desde la red de la universidad.</p>
+      <p>Estado de la API: <code id="api">consultando…</code></p>
+      <script>
+        fetch("/api/health").then(r => {
+          document.getElementById("api").textContent = r.ok ? "disponible" : "no disponible (" + r.status + ")";
+        }).catch(() => {
+          document.getElementById("api").textContent = "no disponible";
+        });
+      </script>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: front
+  namespace: distributed-processing
+  labels:
+    app: front
+spec:
+  # Una sola réplica: con hostNetwork dos pods no pueden compartir el
+  # puerto 80 del mismo nodo, y la entrada es una sola IP (worker1).
+  replicas: 1
+  # Recreate: el pod viejo debe liberar el puerto 80 del nodo antes de que
+  # arranque el nuevo; con RollingUpdate el nuevo quedaría Pending.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: front
+  template:
+    metadata:
+      labels:
+        app: front
+    spec:
+      # Mismo nodo que el master: worker1 no corre tareas MapReduce, así que
+      # las pruebas de tolerancia a fallos (matar workers) no tumban el front.
+      nodeSelector:
+        kubernetes.io/hostname: worker1
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      hostNetwork: true
+      # Con hostNetwork el pod usaría el DNS del nodo; esto le devuelve el
+      # DNS del clúster para poder resolver los Services internos.
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: NGINX_ENTRYPOINT_LOCAL_RESOLVERS
+              value: "1"
+            # Service interno de la API del RAG (pendiente de implementar).
+            - name: API_UPSTREAM
+              value: "http://rag-api.distributed-processing.svc.cluster.local:8000"
+          volumeMounts:
+            - name: nginx-templates
+              mountPath: /etc/nginx/templates
+              readOnly: true
+            - name: html
+              mountPath: /usr/share/nginx/html
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "500m"
+              memory: "128Mi"
+      volumes:
+        - name: nginx-templates
+          configMap:
+            name: front-nginx
+        - name: html
+          configMap:
+            name: front-placeholder
